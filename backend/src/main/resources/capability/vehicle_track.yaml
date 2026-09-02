@@ -1,0 +1,53 @@
+id: vehicle_track
+display: 车辆轨迹回放
+description: 按时间范围回放车辆行驶轨迹（GPS 点序列）
+aliases: [轨迹, 轨迹回放, 行驶轨迹, 路线回放, 去过哪]
+domain: location
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: true
+    max_span_days: 7
+    description: 时间范围，如 昨天 / 近7天
+  - name: vehicle
+    type: string
+    required: true
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    description: 车辆 VIN 列表
+    max_items: 10
+returns:
+  shape: table
+  columns:
+    - {name: dev_time, semantic: category, display: 时间}
+    - {name: lng, semantic: geo_lng, display: 经度}
+    - {name: lat, semantic: geo_lat, display: 纬度}
+    - {name: speed, semantic: metric, display: 速度, unit: km/h, scale: 1}
+    - {name: mileage, semantic: metric, display: 累计里程, unit: km, scale: 1}
+chart_hint: map
+source_tables: [tbox_realtime_histroy_data]
+freshness_policy: {type: t_plus_0, expected_delay_min: 60}
+limits: {max_rows: 2000, timeout_ms: 20000, max_span_days: 7}
+cache: {cacheable: false}
+scopes: [vehicle.location.read]
+row_filter_policy: by_org
+sample_questions: [这台车的行驶轨迹, 轨迹回放看看]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT t.dev_time,
+         ROUND(t.longitude, 6) AS lng,
+         ROUND(t.latitude, 6) AS lat,
+         t.speed,
+         t.mileage
+  FROM tbox_realtime_histroy_data t
+  WHERE t.dev_time >= ${time_from}
+    AND t.dev_time < ${time_to}
+    AND t.vin_code IN (${vin_list})
+    AND t.vin_code IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+    AND t.longitude > 1 AND t.latitude > 1
+  ORDER BY t.dev_time
+  LIMIT 2000

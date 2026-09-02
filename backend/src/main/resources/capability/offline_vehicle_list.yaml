@@ -1,0 +1,40 @@
+id: offline_vehicle_list
+display: 离线车辆清单
+description: 查询离线超过指定时长的车辆清单
+aliases: [离线车辆, 掉线车辆, 离线超过, 失联车辆]
+domain: online
+readonly: true
+params:
+  - name: offline_hours
+    type: number
+    required: false
+    default_value: 24
+    description: 离线时长阈值（小时）
+returns:
+  shape: table
+  columns:
+    - {name: plate_no, semantic: category, display: 车牌号}
+    - {name: fleet_name, semantic: category, display: 车队}
+    - {name: last_report_time, semantic: category, display: 最近上报时间}
+    - {name: offline_hours, semantic: metric, display: 离线时长, unit: 小时, scale: 1}
+chart_hint: table
+source_tables: [tbox_realtime_vehicle_data, basic_vehicle_info]
+freshness_policy: {type: realtime, expected_delay_min: 5}
+limits: {max_rows: 500, timeout_ms: 15000}
+cache: {cacheable: false}
+scopes: [vehicle.status.read]
+row_filter_policy: by_org
+sample_questions: [离线超24小时的车有哪些, 哪些车掉线了]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT COALESCE(b.car_no, t.vin_code) AS plate_no,
+         b.org_name AS fleet_name,
+         t.dev_time AS last_report_time,
+         ROUND(TIMESTAMPDIFF(MINUTE, t.dev_time, NOW()) / 60, 1) AS offline_hours
+  FROM tbox_realtime_vehicle_data t
+  LEFT JOIN basic_vehicle_info b ON t.vin_code = b.vin_code
+  WHERE t.dev_time < DATE_SUB(NOW(), INTERVAL ${offline_hours} HOUR)
+    AND t.vin_code IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  ORDER BY t.dev_time ASC
+  LIMIT 500

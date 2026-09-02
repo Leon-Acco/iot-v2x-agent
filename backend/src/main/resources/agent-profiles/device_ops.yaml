@@ -1,0 +1,9 @@
+id: device_ops
+display: 设备运营 Agent
+capability_domains: [online, location, alarm, fault, trip, charge, geofence]
+read_org_memory: true
+example_questions:
+  - 这台车最近为什么频繁告警
+  - 离线超 24 小时的车有哪些
+  - 沪A12345 现在在哪
+  - 近 3 天触发 AEB 的车辆清单

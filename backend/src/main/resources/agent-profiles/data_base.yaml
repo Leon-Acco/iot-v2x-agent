@@ -1,0 +1,11 @@
+id: data_base
+display: 数据底座 Agent
+capability_domains: [online, location, mileage, alarm, fault, charge, trip, geofence, schema]
+read_org_memory: false
+example_questions:
+  - 各车队近 7 天里程对比
+  - 近 7 天各类告警次数
+  - 离线超 24 小时的车有哪些
+  - 这台车昨天的行驶轨迹
+  - 上周哪类告警最多
+  - 沪A12345 现在在线吗

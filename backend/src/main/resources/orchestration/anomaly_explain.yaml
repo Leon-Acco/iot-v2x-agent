@@ -1,0 +1,24 @@
+# 车辆异常解释编排模板（设计文档 §5.9：模型只选模板 id，不自由多跳）
+id: anomaly_explain
+display: 车辆异常解释
+input: { vehicle: required, time_range: "default=近7天" }
+steps:
+  - id: alarms
+    capability: alarm_list
+    params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
+    parallel_group: 1
+    required: true
+  - id: alarm_stat
+    capability: alarm_count_by_type
+    params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
+    parallel_group: 1
+    required: true
+  - id: mileage
+    capability: mileage_daily
+    params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
+    parallel_group: 1
+    required: false
+output:
+  primary_table: alarms
+  chart: alarm_stat
+budget: { max_capabilities: 4, total_timeout_ms: 20000 }

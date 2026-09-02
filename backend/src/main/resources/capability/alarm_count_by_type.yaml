@@ -1,0 +1,59 @@
+id: alarm_count_by_type
+display: 按类型统计告警次数
+description: 统计指定时间范围内车辆告警次数，按告警类型分组
+aliases: [告警统计, 报警次数, 哪类告警最多, 告警分布, 告警占比]
+domain: alarm
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: false
+    default_value: 近7天
+    max_span_days: 90
+    description: 时间范围，如 近7天 / 本周
+  - name: vehicle
+    type: string
+    required: false
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    description: 车辆 VIN 列表（多轮继承用）
+    max_items: 50
+returns:
+  shape: table
+  columns:
+    - {name: alarm_type, semantic: category, display: 告警类型}
+    - {name: alarm_count, semantic: metric, display: 告警次数, unit: 次}
+chart_hint: bar
+source_tables: [adas_aggregation_simple_alarm_record]
+freshness_policy: {type: realtime, expected_delay_min: 5}
+limits: {max_rows: 1000, timeout_ms: 15000, max_span_days: 90}
+cache: {cacheable: true, ttl_seconds: 120}
+scopes: [vehicle.alarm.read]
+row_filter_policy: by_org
+sample_questions: [近 7 天各类告警次数, 哪类告警最多, 本周告警类型分布]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT CASE a.alarm_type
+    WHEN 1001 THEN '前向碰撞报警'
+    WHEN 1002 THEN '车道偏离报警'
+    WHEN 1003 THEN '车距过近报警'
+    WHEN 1004 THEN '行人碰撞报警'
+    WHEN 1005 THEN '超速报警'
+    WHEN 1006 THEN '疲劳驾驶报警'
+    WHEN 1007 THEN '接打电话报警'
+    WHEN 1008 THEN '抽烟报警'
+    WHEN 1009 THEN '分神驾驶报警'
+    WHEN 1010 THEN '驾驶员异常报警'
+    WHEN 1011 THEN '双手脱离方向盘'
+    ELSE CONCAT('告警类型 ', a.alarm_type) END AS alarm_type, COUNT(1) AS alarm_count
+  FROM adas_aggregation_simple_alarm_record a
+  WHERE a.alarm_start_time >= ${time_from}
+    AND a.alarm_start_time < ${time_to}
+    AND (${vin_list_empty} OR a.car_vin IN (${vin_list}))
+    AND a.car_vin IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  GROUP BY a.alarm_type
+  ORDER BY alarm_count DESC
+  LIMIT 1000

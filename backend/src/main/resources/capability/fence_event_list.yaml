@@ -1,0 +1,50 @@
+id: fence_event_list
+display: 围栏进出事件
+description: 查询车辆进出电子围栏的事件记录
+aliases: [围栏事件, 进出围栏, 围栏报警, 进出记录]
+domain: geofence
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: false
+    default_value: 近7天
+    max_span_days: 90
+    description: 时间范围，如 近7天 / 本周
+  - name: vehicle
+    type: string
+    required: false
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    max_items: 50
+returns:
+  shape: table
+  columns:
+    - {name: event_time, semantic: category, display: 事件时间}
+    - {name: plate_no, semantic: category, display: 车牌号}
+    - {name: fence_name, semantic: category, display: 围栏名称}
+    - {name: trigger_type, semantic: category, display: 进出类型}
+chart_hint: table
+source_tables: [log_fence_event]
+freshness_policy: {type: realtime, expected_delay_min: 30}
+limits: {max_rows: 500, timeout_ms: 15000, max_span_days: 90}
+cache: {cacheable: false}
+scopes: [vehicle.fence.read]
+row_filter_policy: by_org
+sample_questions: [近7天围栏进出情况, 哪些车进出过围栏]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT e.event_time,
+         COALESCE(NULLIF(e.car_no, ''), e.vin_code) AS plate_no,
+         e.fence_name,
+         CASE e.trigger_type WHEN '1' THEN '进入' WHEN '0' THEN '离开' ELSE e.trigger_type END AS trigger_type
+  FROM log_fence_event e
+  WHERE e.event_time >= ${time_from}
+    AND e.event_time < ${time_to}
+    AND (${vin_list_empty} OR e.vin_code IN (${vin_list}))
+    AND e.vin_code IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  ORDER BY e.event_time DESC
+  LIMIT 500

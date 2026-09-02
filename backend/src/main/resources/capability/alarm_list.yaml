@@ -1,0 +1,65 @@
+id: alarm_list
+display: 车辆告警明细
+description: 查询指定时间范围内车辆的告警明细记录
+aliases: [告警明细, 报警记录, 告警历史, 告警列表, AEB, 哪些告警, 触发]
+domain: alarm
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: true
+    max_span_days: 90
+    description: 时间范围，如 近7天 / 本周
+  - name: vehicle
+    type: string
+    required: false
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    description: 车辆 VIN 列表（多轮继承用）
+    max_items: 50
+returns:
+  shape: table
+  columns:
+    - {name: alarm_start_time, semantic: category, display: 告警开始时间}
+    - {name: plate_no, semantic: category, display: 车牌号}
+    - {name: alarm_type, semantic: category, display: 告警类型}
+    - {name: risk_level, semantic: category, display: 风险等级}
+    - {name: alarm_end_time, semantic: category, display: 告警结束时间}
+chart_hint: table
+source_tables: [adas_aggregation_simple_alarm_record, basic_vehicle_info]
+freshness_policy: {type: realtime, expected_delay_min: 5}
+limits: {max_rows: 500, timeout_ms: 15000, max_span_days: 90}
+cache: {cacheable: false}
+scopes: [vehicle.alarm.read]
+row_filter_policy: by_org
+sample_questions: [近两天的告警明细, 这台车最近报了什么警]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT a.alarm_start_time,
+         COALESCE(b.car_no, a.car_vin) AS plate_no,
+         CASE a.alarm_type
+    WHEN 1001 THEN '前向碰撞报警'
+    WHEN 1002 THEN '车道偏离报警'
+    WHEN 1003 THEN '车距过近报警'
+    WHEN 1004 THEN '行人碰撞报警'
+    WHEN 1005 THEN '超速报警'
+    WHEN 1006 THEN '疲劳驾驶报警'
+    WHEN 1007 THEN '接打电话报警'
+    WHEN 1008 THEN '抽烟报警'
+    WHEN 1009 THEN '分神驾驶报警'
+    WHEN 1010 THEN '驾驶员异常报警'
+    WHEN 1011 THEN '双手脱离方向盘'
+    ELSE CONCAT('告警类型 ', a.alarm_type) END AS alarm_type,
+         CONCAT('等级', a.risk_level) AS risk_level,
+         a.alarm_end_time
+  FROM adas_aggregation_simple_alarm_record a
+  LEFT JOIN basic_vehicle_info b ON a.car_vin = b.vin_code
+  WHERE a.alarm_start_time >= ${time_from}
+    AND a.alarm_start_time < ${time_to}
+    AND (${vin_list_empty} OR a.car_vin IN (${vin_list}))
+    AND a.car_vin IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  ORDER BY a.alarm_start_time DESC
+  LIMIT 500

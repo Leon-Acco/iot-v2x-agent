@@ -1,0 +1,12 @@
+spring:
+  # Nacos config center: dev cluster
+  cloud:
+    nacos:
+      config:
+        server-addr: 172.16.8.165:8848
+        namespace: d9eba963-51aa-4d38-bd81-1206c419578e
+        username: dev
+        password: gZognfcwSvyiq32r
+        file-extension: properties
+        fail-fast: false
+        refresh-enabled: true

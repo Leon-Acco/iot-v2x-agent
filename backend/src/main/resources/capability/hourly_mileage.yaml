@@ -1,0 +1,47 @@
+id: hourly_mileage
+display: 小时里程分布
+description: 统计车辆指定日期逐小时里程分布曲线
+aliases: [小时里程, 每小时里程, 几点跑得多, 里程曲线]
+domain: mileage
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: false
+    default_value: 今天
+    max_span_days: 7
+    description: 日期，如 今天 / 昨天
+  - name: vehicle
+    type: string
+    required: false
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    max_items: 20
+returns:
+  shape: table
+  columns:
+    - {name: window_hour, semantic: category, display: 小时}
+    - {name: mileage, semantic: metric, display: 里程, unit: km, scale: 1}
+chart_hint: line
+source_tables: [vehicle_mileage_summary_hourly]
+freshness_policy: {type: realtime, expected_delay_min: 60}
+limits: {max_rows: 500, timeout_ms: 15000, max_span_days: 7}
+cache: {cacheable: true, ttl_seconds: 300}
+scopes: [vehicle.mileage.read]
+row_filter_policy: by_org
+sample_questions: [今天每小时里程分布, 几点跑得最多]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT DATE_FORMAT(h.window_hour, '%H:00') AS window_hour,
+         ROUND(SUM(h.mileage), 1) AS mileage
+  FROM vehicle_mileage_summary_hourly h
+  WHERE h.window_hour >= ${time_from}
+    AND h.window_hour < ${time_to}
+    AND (${vin_list_empty} OR h.vin IN (${vin_list}))
+    AND h.vin IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  GROUP BY DATE_FORMAT(h.window_hour, '%H:00')
+  ORDER BY window_hour
+  LIMIT 500

@@ -1,0 +1,12 @@
+spring:
+  # Nacos config center: local namespace on test cluster (same as dst-iot-shadow-write-service)
+  cloud:
+    nacos:
+      config:
+        server-addr: 172.16.8.237:8848
+        namespace: 240b52d5-ae87-443c-86ae-708fe2929423
+        username: nacos
+        password: N3HJ5CG7Nuo7tEqQ
+        file-extension: properties
+        fail-fast: false
+        refresh-enabled: true

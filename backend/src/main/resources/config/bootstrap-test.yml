@@ -1,0 +1,12 @@
+spring:
+  # Nacos config center: test namespace on test cluster
+  cloud:
+    nacos:
+      config:
+        server-addr: 172.16.8.237:8848
+        namespace: 588bb147-c6af-4805-be17-705fd5253ce2
+        username: nacos
+        password: N3HJ5CG7Nuo7tEqQ
+        file-extension: properties
+        fail-fast: false
+        refresh-enabled: true

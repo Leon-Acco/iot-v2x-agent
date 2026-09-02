@@ -1,0 +1,55 @@
+# ---- Java / Maven ----
+target/
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ---- Node / Nuxt ----
+node_modules/
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.output/
+frontend/dist/
+frontend/.data/
+.nuxt/
+.output/
+dist/
+
+# ---- logs ----
+*.log
+logs/
+logs-*.txt
+
+# ---- temp / tooling ----
+.tmp-verify/
+.playwright-mcp/
+.claude/
+scripts/__pycache__/
+*.pyc
+
+# ---- IDE / OS ----
+.idea/
+*.iml
+.vscode/
+Thumbs.db
+.DS_Store
+
+# ---- env / secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- local nacos config copy (contains secrets) ----
+nacos/
+
+# ---- backups / leftovers ----
+*.bak
+*.old
+*.orig
+*~
+.bak/
+_backup/
+
+# ---- runtime data (task cards etc) ----
+backend/data/

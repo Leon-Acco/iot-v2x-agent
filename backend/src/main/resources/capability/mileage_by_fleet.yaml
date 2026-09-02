@@ -1,0 +1,47 @@
+id: mileage_by_fleet
+display: 各车队里程对比
+description: 按车队（org）汇总指定时间范围内的行驶里程对比
+aliases: [车队里程, 里程对比, 各车队里程, 车队对比]
+domain: mileage
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: false
+    default_value: 近7天
+    max_span_days: 31
+    description: 时间范围，如 近7天 / 本周
+returns:
+  shape: table
+  columns:
+    - {name: fleet_name, semantic: category, display: 车队}
+    - {name: vehicle_count, semantic: metric, display: 车辆数, unit: 辆}
+    - {name: total_mileage, semantic: metric, display: 总里程, unit: km, scale: 1}
+chart_hint: bar
+source_tables: [vehicle_mileage_data, basic_vehicle_info]
+freshness_policy: {type: realtime, expected_delay_min: 10}
+limits: {max_rows: 100, timeout_ms: 20000, max_span_days: 31}
+cache: {cacheable: true, ttl_seconds: 300}
+scopes: [vehicle.mileage.read]
+row_filter_policy: by_org
+sample_questions: [各车队近7天里程对比, 哪个车队跑得最多]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT b.org_name AS fleet_name,
+         COUNT(1) AS vehicle_count,
+         ROUND(SUM(t.diff), 1) AS total_mileage
+  FROM (
+    SELECT m.vin, MAX(m.mileage_total) - MIN(m.mileage_total) AS diff
+    FROM vehicle_mileage_data m
+    WHERE m.data_time >= ${time_from}
+      AND m.data_time < ${time_to}
+      AND m.cmd = 2
+    GROUP BY m.vin
+    HAVING diff >= 0 AND diff < 100000
+  ) t
+  JOIN basic_vehicle_info b ON t.vin = b.vin_code
+  WHERE b.org_name IN (${acl_org_ids})
+  GROUP BY b.org_name
+  ORDER BY total_mileage DESC
+  LIMIT 100

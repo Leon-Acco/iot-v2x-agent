@@ -1,0 +1,47 @@
+id: fault_count_by_part
+display: 故障统计（按部件）
+description: 统计指定时间范围内车辆故障次数，按故障部件分组
+aliases: [故障统计, 故障次数, 哪类故障最多, 故障分布, 故障部件]
+domain: fault
+readonly: true
+params:
+  - name: time_range
+    type: daterange
+    required: false
+    default_value: 近7天
+    max_span_days: 90
+    description: 时间范围，如 近7天 / 本周
+  - name: vehicle
+    type: string
+    required: false
+    description: 车牌号或 VIN
+  - name: vin_list
+    type: array<string>
+    required: false
+    max_items: 50
+returns:
+  shape: table
+  columns:
+    - {name: fault_part, semantic: category, display: 故障部件}
+    - {name: fault_count, semantic: metric, display: 故障次数, unit: 次}
+chart_hint: bar
+source_tables: [tbox_fault_history]
+freshness_policy: {type: realtime, expected_delay_min: 30}
+limits: {max_rows: 1000, timeout_ms: 15000, max_span_days: 90}
+cache: {cacheable: true, ttl_seconds: 300}
+scopes: [vehicle.fault.read]
+row_filter_policy: by_org
+sample_questions: [近7天各部件故障次数, 哪类故障最多]
+owner: 数据组
+status: online
+sql_template: |
+  SELECT COALESCE(NULLIF(f.fault_part, ''), '未标注') AS fault_part,
+         COUNT(1) AS fault_count
+  FROM tbox_fault_history f
+  WHERE f.data_time >= ${time_from}
+    AND f.data_time < ${time_to}
+    AND (${vin_list_empty} OR f.vin_code IN (${vin_list}))
+    AND f.vin_code IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+  GROUP BY COALESCE(NULLIF(f.fault_part, ''), '未标注')
+  ORDER BY fault_count DESC
+  LIMIT 1000
