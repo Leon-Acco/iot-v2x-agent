@@ -1,0 +1,3 @@
+line one
+has "double" quotes and 'single' tokens
+regex \\s+ and dollar ${x:3000}

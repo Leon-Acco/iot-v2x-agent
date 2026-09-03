@@ -1,0 +1,34 @@
+- type: VEHICLE
+  name: 车辆
+  id_field: vin
+  description: 单台车辆，以 VIN / 车牌号标识
+
+- type: FLEET
+  name: 车队
+  id_field: fleet_id
+  description: 车队（运营组织），ACL 的基本单元
+
+- type: REGION
+  name: 区域
+  id_field: region_code
+  description: 省 / 市 / 区三级行政区域
+
+- type: ALARM
+  name: 告警
+  id_field: alarm_id
+  description: 主动安全告警事件
+
+- type: FAULT
+  name: 故障
+  id_field: fault_id
+  description: 车辆故障事件
+
+- type: TRIP
+  name: 行程
+  id_field: trip_id
+  description: 车辆行程
+
+- type: CHARGING_STATION
+  name: 充电站
+  id_field: station_id
+  description: 充电设施

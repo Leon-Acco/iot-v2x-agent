@@ -1,0 +1,38 @@
+- id: fleet
+  name: 车队
+  type: category
+
+- id: vehicle
+  name: 车辆
+  type: category
+
+- id: province
+  name: 省份
+  type: geo
+
+- id: city
+  name: 城市
+  type: geo
+  parent: province
+
+- id: district
+  name: 区县
+  type: geo
+  parent: city
+
+- id: alarm_type
+  name: 告警类型
+  type: category
+
+- id: fault_part
+  name: 故障部位
+  type: category
+
+- id: day
+  name: 日期
+  type: time
+
+- id: hour
+  name: 小时
+  type: time
+  parent: day

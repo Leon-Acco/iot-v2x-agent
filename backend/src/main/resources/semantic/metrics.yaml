@@ -1,0 +1,66 @@
+- id: alarm.count
+  name: 告警次数
+  description: 指定时间范围内的告警总次数，可按告警类型分组
+  unit: count
+  capability: alarm_count_by_type
+  value_column: alarm_count
+  aggregate: sum
+  dimensions: [alarm_type]
+  dimension_columns: {alarm_type: alarm_type}
+
+- id: fault.count
+  name: 故障次数
+  description: 指定时间范围内的故障总次数，可按故障部位分组
+  unit: count
+  capability: fault_count_by_part
+  value_column: fault_count
+  aggregate: sum
+  dimensions: [fault_part]
+  dimension_columns: {fault_part: fault_part}
+
+- id: mileage.daily
+  name: 日里程
+  description: 车辆每日行驶里程，可按日期分组查看趋势
+  unit: km
+  capability: mileage_daily
+  value_column: daily_mileage
+  aggregate: sum
+  dimensions: [day, vehicle]
+  dimension_columns: {day: stat_date, vehicle: vin}
+
+- id: mileage.by_fleet
+  name: 车队里程
+  description: 车队维度里程汇总
+  unit: km
+  capability: mileage_by_fleet
+  value_column: total_mileage
+  aggregate: sum
+  dimensions: []
+
+- id: vehicle.offline_count
+  name: 离线车辆数
+  description: 当前离线车辆数量
+  unit: count
+  capability: offline_vehicle_list
+  aggregate: count
+  dimensions: []
+
+- id: charge.daily
+  name: 日充电量
+  description: 车辆每日充电量
+  unit: kwh
+  capability: charge_daily
+  value_column: charge_total
+  aggregate: sum
+  dimensions: [day]
+  dimension_columns: {day: query_date}
+
+- id: trip.daily
+  name: 日行程数
+  description: 车辆每日行程数量
+  unit: count
+  capability: trip_daily
+  value_column: drive_times
+  aggregate: sum
+  dimensions: [day]
+  dimension_columns: {day: stat_date}
