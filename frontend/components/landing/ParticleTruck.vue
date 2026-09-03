@@ -7,8 +7,27 @@
 
 <script setup>
 const props = defineProps({
-  vehicles: { type: Array, default: () => [] }
+  vehicles: { type: Array, default: () => [] },
+  palette: { type: String, default: 'blue' }
 })
+
+// palettes: blue = dark cockpit default; cyan = light hologram (Image#2 style)
+const PALETTES = {
+  blue: {
+    body: 0x9DBDF5, roof: 0xD6E4FF, cab: 0x7FA8F0, cab2: 0x8FB6F4, trim: 0x3A4A63,
+    glass: 0x6FE3FF, wheel: 0x2E3B52, hub: 0xC9D9F2, head: 0xFFF3C4, tail: 0xFF5A5A,
+    dust: 0x93C5FD, accent: 0x60A5FA, globe: 0xC7D8F0
+  },
+  cyan: {
+    body: 0x8FD8D4, roof: 0xD9F2EF, cab: 0x6FC6C0, cab2: 0x86D2CC, trim: 0x1F4E4A,
+    glass: 0x5CF0E0, wheel: 0x1E3A38, hub: 0xC4E8E2, head: 0xFFF6C9, tail: 0xFF6B6B,
+    dust: 0x7FD0C8, accent: 0x2BBFAF, globe: 0xBFE3DC
+  }
+}
+function C(key) {
+  const pal = PALETTES[props.palette] || PALETTES.blue
+  return pal[key]
+}
 
 const wrap = ref(null)
 const cv = ref(null)
@@ -145,27 +164,27 @@ function buildCar() {
   // 车身主体（货厢）浅蓝白
   const body = []
   const bodyCol = []
-  sampleBox(body, bodyCol, [-2.55, -0.35, 0.42, 1.52, -0.56, 0.56], 0x9DBDF5, 620)
+  sampleBox(body, bodyCol, [-2.55, -0.35, 0.42, 1.52, -0.56, 0.56], C('body'), 620)
   // 车顶加亮层
-  sampleBox(body, bodyCol, [-2.55, -0.35, 1.50, 1.56, -0.56, 0.56], 0xD6E4FF, 300)
+  sampleBox(body, bodyCol, [-2.55, -0.35, 1.50, 1.56, -0.56, 0.56], C('roof'), 300)
   carGroup.add(makePoints(body, bodyCol, 0.028, 0.95))
 
   // 驾驶舱下部（中蓝）
   const cab = []
   const cabCol = []
-  sampleBox(cab, cabCol, [-0.35, 0.72, 0.18, 0.82, -0.56, 0.56], 0x7FA8F0, 420)
+  sampleBox(cab, cabCol, [-0.35, 0.72, 0.18, 0.82, -0.56, 0.56], C('cab'), 420)
   // 驾驶舱上部（略窄）
-  sampleBox(cab, cabCol, [-0.30, 0.55, 0.82, 1.18, -0.48, 0.48], 0x8FB6F4, 300)
+  sampleBox(cab, cabCol, [-0.30, 0.55, 0.82, 1.18, -0.48, 0.48], C('cab2'), 300)
   // 底盘深色条
-  sampleBox(cab, cabCol, [-2.6, 0.85, 0.14, 0.30, -0.50, 0.50], 0x3A4A63, 160)
+  sampleBox(cab, cabCol, [-2.6, 0.85, 0.14, 0.30, -0.50, 0.50], C('trim'), 160)
   carGroup.add(makePoints(cab, cabCol, 0.028, 0.95))
 
   // 玻璃层：前模款降舱前面上半 + 侧窗，亮青
   const glass = []
   const glassCol = []
-  sampleBox(glass, glassCol, [0.55, 0.72, 0.82, 1.14, -0.46, 0.46], 0x6FE3FF, 260)
-  sampleBox(glass, glassCol, [-0.28, 0.50, 0.86, 1.12, -0.49, -0.46], 0x6FE3FF, 120)
-  sampleBox(glass, glassCol, [-0.28, 0.50, 0.86, 1.12, 0.46, 0.49], 0x6FE3FF, 120)
+  sampleBox(glass, glassCol, [0.55, 0.72, 0.82, 1.14, -0.46, 0.46], C('glass'), 260)
+  sampleBox(glass, glassCol, [-0.28, 0.50, 0.86, 1.12, -0.49, -0.46], C('glass'), 120)
+  sampleBox(glass, glassCol, [-0.28, 0.50, 0.86, 1.12, 0.46, 0.49], C('glass'), 120)
   carGroup.add(makePoints(glass, glassCol, 0.034, 0.9))
 
   // 4 轮胎 + 轮毯（前 1 后 1 货厢 2）
@@ -176,8 +195,8 @@ function buildCar() {
   const hubsCol = []
   for (const wx of wheelXs) {
     for (const wz of [-0.58, 0.58]) {
-      sampleTorus(wheels, wheelsCol, wx, 0.30, wz, 0.24, 0.07, 0x2E3B52, 420)
-      sampleDisc(hubs, hubsCol, wx, 0.30, wz, 0.11, 0xC9D9F2, 110)
+      sampleTorus(wheels, wheelsCol, wx, 0.30, wz, 0.24, 0.07, C('wheel'), 420)
+      sampleDisc(hubs, hubsCol, wx, 0.30, wz, 0.11, C('hub'), 110)
     }
   }
   carGroup.add(makePoints(wheels, wheelsCol, 0.032, 0.95))
@@ -186,9 +205,9 @@ function buildCar() {
   // 前灯（暖白）+ 尾部红色灯带
   const lights = []
   const lightsCol = []
-  sampleCluster(lights, lightsCol, 0.76, 0.40, -0.38, [0.06, 0.12, 0.18], 0xFFF3C4, 40, 1.7)
-  sampleCluster(lights, lightsCol, 0.76, 0.40, 0.38, [0.06, 0.12, 0.18], 0xFFF3C4, 40, 1.7)
-  sampleCluster(lights, lightsCol, -2.62, 0.52, 0, [0.04, 0.08, 1.02], 0xFF5A5A, 70, 1.6)
+  sampleCluster(lights, lightsCol, 0.76, 0.40, -0.38, [0.06, 0.12, 0.18], C('head'), 40, 1.7)
+  sampleCluster(lights, lightsCol, 0.76, 0.40, 0.38, [0.06, 0.12, 0.18], C('head'), 40, 1.7)
+  sampleCluster(lights, lightsCol, -2.62, 0.52, 0, [0.04, 0.08, 1.02], C('tail'), 70, 1.6)
   carGroup.add(makePoints(lights, lightsCol, 0.05, 0.95))
 
   // 车底悬浮粒子尘
@@ -200,7 +219,7 @@ function buildCar() {
       0.02 + Math.random() * 0.16,
       -0.75 + Math.random() * 1.5
     )
-    pushColor(dustCol, 0x93C5FD, 0.7 + Math.random() * 0.6)
+    pushColor(dustCol, C('dust'), 0.7 + Math.random() * 0.6)
   }
   carGroup.add(makePoints(dust, dustCol, 0.022, 0.7))
 
@@ -221,7 +240,7 @@ function buildGlobe() {
     const radius = Math.sqrt(1 - y * y)
     const theta = i * 2.399963229728653
     pos.push(Math.cos(theta) * radius * R, y * R, Math.sin(theta) * radius * R)
-    pushColor(col, Math.random() < 0.04 ? 0x60A5FA : 0xC7D8F0, 0.8 + Math.random() * 0.3)
+    pushColor(col, Math.random() < 0.04 ? C('accent') : C('globe'), 0.8 + Math.random() * 0.3)
   }
   globeGroup.add(makePoints(pos, col, 0.026, 0.55))
   globeGroup.position.set(0.4, 0.9, -2.4)
@@ -234,7 +253,7 @@ function buildGround() {
   for (let i = 0; i < 3; i++) {
     const curve = new THREE.EllipseCurve(0, 0, 1, 1, 0, Math.PI * 2, false, 0)
     const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(120))
-    const mat = new THREE.LineBasicMaterial({ color: 0x60A5FA, transparent: true, opacity: 0.0 })
+    const mat = new THREE.LineBasicMaterial({ color: C('accent'), transparent: true, opacity: 0.0 })
     const ring = new THREE.LineLoop(geo, mat)
     ring.rotation.x = Math.PI / 2
     ring.position.y = 0.02
@@ -249,7 +268,7 @@ function buildGround() {
     const a = Math.random() * Math.PI * 2
     const r = 0.6 + Math.sqrt(Math.random()) * 3.6
     pos.push(Math.cos(a) * r - 0.4, 0.02 + Math.random() * 0.015, Math.sin(a) * r)
-    pushColor(col, 0x93C5FD, 0.5 + Math.random() * 0.5)
+    pushColor(col, C('dust'), 0.5 + Math.random() * 0.5)
   }
   scene.add(makePoints(pos, col, 0.02, 0.5))
 }

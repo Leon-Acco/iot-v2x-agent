@@ -20,6 +20,7 @@ public class CapabilityService {
 
     private final CapabilityRegistry registry;
     private final ParamResolver paramResolver;
+    private final CapabilityFirewall firewall;
     private final CapabilityExecutor executor;
     private final RenderChartTool renderChartTool;
     private final OrchestrationExecutor orchestrationExecutor;
@@ -40,10 +41,9 @@ public class CapabilityService {
      */
     public InvokeOutcome invoke(String capabilityId, Map<String, Object> rawParams, PermissionContext ctx) {
         CapabilityDefinition def = registry.require(capabilityId);
-        if (!"online".equals(def.getStatus())) {
-            throw com.dst.v2xagent.common.ApiException.capabilityNotFound("capability 未上线: " + capabilityId);
-        }
         ParamResolver.ResolvedParams resolved = paramResolver.resolve(def, rawParams, ctx, ZonedDateTime.now());
+        // 防火墙统一管线：状态 → scope → 参数策略 → 限流（不过即拒）
+        firewall.check(def, resolved, ctx);
         // 编排引用型：走模板执行，主表/出图按模板声明的步骤产出
         if ("orchestration".equals(def.getKind())) {
             java.util.Map<String, Object> orchInput = new java.util.HashMap<>(rawParams);
@@ -72,6 +72,8 @@ public class CapabilityService {
     public InvokeOutcome dryRun(String capabilityId, Map<String, Object> rawParams, PermissionContext ctx) {
         CapabilityDefinition def = registry.require(capabilityId);
         ParamResolver.ResolvedParams resolved = paramResolver.resolve(def, rawParams, ctx, ZonedDateTime.now());
+        // dry-run 同样过防火墙（管理员试跑也不越权）
+        firewall.check(def, resolved, ctx);
         TableResult table = executor.execute(def, resolved, ctx);
         RenderChartTool.ChartSpec chart = renderChartTool.render(def, table);
         return new InvokeOutcome(def, resolved, table, chart);

@@ -8,6 +8,7 @@
         @create="newSession"
         @select="selectSession"
       />
+      <WorkCanvas :stream="activeStream" />
       <div class="chat-main">
         <ChatStream
           :messages="messages"
@@ -23,7 +24,6 @@
           <ChatComposer ref="composer" :streaming="streaming" @send="send" @stop="onStop" />
         </div>
       </div>
-      <ResultPanel v-if="activeStream" :stream="activeStream" />
     </div>
   </AppShell>
 </template>
@@ -208,7 +208,7 @@ onMounted(() => {
   display: flex; height: calc(100vh - 56px - 48px);
   overflow: hidden;
 }
-.chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat-main { width: 460px; flex-shrink: 0; display: flex; flex-direction: column; min-width: 0; background: #fff; }
 .composer-wrap { flex-shrink: 0; }
 .composer-wrap :deep(.input-bar-wrap) {
   background: transparent; border-top-color: var(--border-default);

@@ -41,27 +41,27 @@ function upd(key, val) {
 <style scoped>
 .filter-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  background: rgba(13, 24, 44, .62); border: 1px solid rgba(56, 189, 248, .14);
+  background: rgba(255, 255, 255, .74); border: 1px solid rgba(14, 138, 138, .15);
   border-radius: 14px; padding: 10px 16px; backdrop-filter: blur(10px);
 }
 .fb-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .fb-select {
-  font: inherit; font-size: 12.5px; color: #C7D6EE; background: rgba(8, 17, 32, .9);
-  border: 1px solid rgba(56, 189, 248, .2); border-radius: 9px; padding: 7px 12px;
+  font: inherit; font-size: 12.5px; color: #2A5A57; background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(14, 138, 138, .2); border-radius: 9px; padding: 7px 12px;
   outline: none; cursor: pointer; max-width: 170px;
 }
-.fb-select:focus { border-color: rgba(45, 212, 191, .55); }
+.fb-select:focus { border-color: rgba(14, 138, 138, .55); }
 .fb-refresh {
-  font: inherit; font-size: 12.5px; color: #2DD4BF; cursor: pointer;
-  background: rgba(45, 212, 191, .12); border: 1px solid rgba(45, 212, 191, .3);
+  font: inherit; font-size: 12.5px; color: #0E8A8A; cursor: pointer;
+  background: rgba(14, 138, 138, .12); border: 1px solid rgba(14, 138, 138, .3);
   border-radius: 9px; padding: 7px 14px;
 }
-.fb-refresh:hover { background: rgba(45, 212, 191, .2); }
-.fb-right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #2DD4BF; white-space: nowrap; }
+.fb-refresh:hover { background: rgba(14, 138, 138, .2); }
+.fb-right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #0E8A8A; white-space: nowrap; }
 .live-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: #34F5C5;
-  box-shadow: 0 0 0 3px rgba(52, 245, 197, .18); animation: pulse 2s ease-in-out infinite;
+  width: 7px; height: 7px; border-radius: 50%; background: #0E8A8A;
+  box-shadow: 0 0 0 3px rgba(14, 138, 138, .18); animation: pulse 2s ease-in-out infinite;
 }
-@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(52, 245, 197, 0); } }
-.fb-time { color: #5A7194; font-family: var(--font-num); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(14, 138, 138, 0); } }
+.fb-time { color: #5A7A76; font-family: var(--font-num); }
 </style>

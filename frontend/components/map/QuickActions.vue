@@ -24,10 +24,10 @@ const emit = defineEmits(['export', 'refresh'])
 .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .qa-btn {
   display: flex; align-items: center; gap: 9px; padding: 11px 13px;
-  font: inherit; font-size: 12.5px; color: #C7D6EE; cursor: pointer;
-  background: rgba(13, 24, 44, .55); border: 1px solid rgba(56, 189, 248, .16);
+  font: inherit; font-size: 12.5px; color: #2A5A57; cursor: pointer;
+  background: rgba(255, 255, 255, .74); border: 1px solid rgba(56, 189, 248, .16);
   border-radius: 11px; transition: border-color .2s, color .2s;
 }
-.qa-btn:hover { border-color: rgba(45, 212, 191, .5); color: #2DD4BF; }
-.qa-ico { font-size: 14px; color: #2DD4BF; width: 16px; text-align: center; }
+.qa-btn:hover { border-color: rgba(14, 138, 138, .5); color: #0E8A8A; }
+.qa-ico { font-size: 14px; color: #0E8A8A; width: 16px; text-align: center; }
 </style>

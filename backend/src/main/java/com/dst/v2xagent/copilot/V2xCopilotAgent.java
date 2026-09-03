@@ -206,10 +206,11 @@ public class V2xCopilotAgent implements Agent {
                                StringBuilder conclusion, String runId) {
         ToolResultBridge bridge = new ToolResultBridge(sink, runtime.charts());
         CopilotTools tools = new CopilotTools(queries, ctx, bridge);
+        VisualizationTools vizTools = new VisualizationTools(bridge);
         Model model = AgentScopeModels.concludeModel(runtime.llm().activeProvider());
         sink.emit(AgUiEvent.stepStarted("invoke", "专家 Agent 正在分析"));
         checkCancelled(runId);
-        try (ReActAgent agent = SpecialistAgents.build(domain, tools, model)) {
+        try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, model)) {
             agent.streamEvents(history)
                     .doOnNext(ev -> translateAgentEvent(ev, sink, conclusion))
                     .blockLast(Duration.ofSeconds(180));
@@ -292,30 +293,18 @@ public class V2xCopilotAgent implements Agent {
     /** 平台元信息问答（确定性内容，不调模型） */
     private String metaReply(PermissionContext ctx) {
         StringBuilder sb = new StringBuilder();
-        sb.append("我是由 Supervisor + 多专家 Agent 协作的车联网智能助手。
-
-");
+        sb.append("我是由 Supervisor + 多专家 Agent 协作的车联网智能助手。\n\n");
         sb.append("**数据源**：").append(queries.sourceName())
                 .append("，数据基准日 ").append(queries.baseDate())
-                .append("。
-");
+                .append("。\n");
         sb.append("**权限**：").append(ctx.isAdmin() ? "管理员，可见全部车队" : "可见车队：" + ctx.fleetIds())
-                .append("。
-
-");
-        sb.append("**专家分工**：
-");
-        sb.append("- 车辆专家：档案 / 离线清单 / 最后位置
-");
-        sb.append("- 告警专家：类型统计 / 明细 / 车队对比
-");
-        sb.append("- 故障专家：部位统计 / 明细
-");
-        sb.append("- 里程充电专家：车队里程对比 / 每日里程 / 充电统计
-");
-        sb.append("- 异常分析 Workflow：某台车的多源取证与报告
-
-");
+                .append("。\n\n");
+        sb.append("**专家分工**：\n");
+        sb.append("- 车辆专家：档案 / 离线清单 / 最后位置\n");
+        sb.append("- 告警专家：类型统计 / 明细 / 车队对比\n");
+        sb.append("- 故障专家：部位统计 / 明细\n");
+        sb.append("- 里程充电专家：车队里程对比 / 每日里程 / 充电统计\n");
+        sb.append("- 异常分析 Workflow：某台车的多源取证与报告\n\n");
         sb.append("每次查询会自动展示表格和图表，你可以直接问。");
         return sb.toString();
     }

@@ -1,6 +1,6 @@
 <template>
   <!-- 设备孪生地图：深色数字孪生驾驶仓（地图为核心 + 筛选联动 + 实时告警） -->
-  <AppShell title="设备孪生地图" theme="twin">
+  <AppShell title="设备孪生地图" theme="green">
     <div class="twin">
       <FilterBar
         :filters="filters" :provinces="provinceOptions" :brands="brandOptions"
@@ -307,8 +307,8 @@ usePolling(load, 30000)
 <style scoped>
 /* ===== 深色孪生设计令牌（页面局部生效） ===== */
 .twin {
-  --panel: rgba(13, 24, 44, .62);
-  --line: rgba(56, 189, 248, .14);
+  --panel: rgba(255, 255, 255, .74);
+  --line: rgba(14, 138, 138, .15);
   display: flex; flex-direction: column; gap: 14px; min-height: calc(100vh - 140px);
 }
 
@@ -318,15 +318,15 @@ usePolling(load, 30000)
   position: relative; border-radius: 16px; overflow: hidden; min-height: 460px;
   border: 1px solid var(--line);
   background:
-    radial-gradient(900px 600px at 70% 20%, rgba(45, 212, 191, .06) 0%, transparent 65%),
-    radial-gradient(700px 500px at 20% 85%, rgba(56, 189, 248, .05) 0%, transparent 70%),
-    #081020;
+    radial-gradient(900px 600px at 70% 20%, rgba(14, 138, 138, .07) 0%, transparent 65%),
+    radial-gradient(700px 500px at 20% 85%, rgba(43, 191, 175, .06) 0%, transparent 70%),
+    linear-gradient(165deg, #EDF6F3 0%, #E2EFEA 60%, #D9EAE4 100%);
 }
 .stage::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
   background-image:
-    linear-gradient(rgba(56, 189, 248, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, .045) 1px, transparent 1px);
+    linear-gradient(rgba(14, 138, 138, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 138, 138, .05) 1px, transparent 1px);
   background-size: 44px 44px;
 }
 .kpis { display: flex; flex-direction: column; gap: 14px; }
@@ -334,41 +334,41 @@ usePolling(load, 30000)
 /* ===== 搜索 ===== */
 .stage-search { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; z-index: 7; width: min(320px, 46%); }
 .stage-search input {
-  width: 100%; font: inherit; font-size: 12.5px; color: #E6F1FF; outline: none;
-  background: rgba(13, 24, 44, .78); border: 1px solid rgba(56, 189, 248, .22);
+  width: 100%; font: inherit; font-size: 12.5px; color: #12403E; outline: none;
+  background: rgba(255, 255, 255, .86); border: 1px solid rgba(14, 138, 138, .22);
   border-radius: 10px; padding: 8px 14px; backdrop-filter: blur(8px);
 }
-.stage-search input::placeholder { color: #3D5578; }
-.stage-search input:focus { border-color: rgba(45, 212, 191, .55); }
+.stage-search input::placeholder { color: #8AA6A2; }
+.stage-search input:focus { border-color: rgba(14, 138, 138, .55); }
 .search-drop {
-  margin-top: 6px; background: rgba(8, 17, 32, .95); border: 1px solid rgba(56, 189, 248, .2);
+  margin-top: 6px; background: rgba(255, 255, 255, .96); border: 1px solid rgba(14, 138, 138, .18);
   border-radius: 10px; overflow: hidden; max-height: 260px; overflow-y: auto;
 }
 .search-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; font-size: 12px; }
-.search-item:hover { background: rgba(45, 212, 191, .1); }
-.search-item b { color: #E6F1FF; font-variant-numeric: tabular-nums; }
-.search-item span { color: #5A7194; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-item.none { color: #5A7194; cursor: default; }
+.search-item:hover { background: rgba(14, 138, 138, .08); }
+.search-item b { color: #12403E; font-variant-numeric: tabular-nums; }
+.search-item span { color: #5A7A76; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-item.none { color: #8AA6A2; cursor: default; }
 
 /* ===== 主文案 ===== */
 .hero { position: absolute; left: 24px; bottom: 22px; z-index: 3; pointer-events: none; }
-.hero h1 { font-size: clamp(22px, 2vw, 32px); line-height: 1.28; letter-spacing: -.01em; font-weight: 800; color: #E6F1FF; margin: 0; }
-.hero h1 .thin { font-weight: 400; color: #8CA3C3; }
-.hero p { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: #5A7194; }
+.hero h1 { font-size: clamp(22px, 2vw, 32px); line-height: 1.28; letter-spacing: -.01em; font-weight: 800; color: #12403E; margin: 0; }
+.hero h1 .thin { font-weight: 400; color: #4A7672; }
+.hero p { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: #5A7A76; }
 
 /* ===== 车辆详情卡 ===== */
 .veh-card {
   position: absolute; right: 14px; bottom: 14px; z-index: 7; width: 240px;
-  background: rgba(8, 17, 32, .92); border: 1px solid rgba(45, 212, 191, .3);
+  background: rgba(255, 255, 255, .9); border: 1px solid rgba(14, 138, 138, .28);
   border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(10px);
 }
-.veh-plate { font-size: 15px; font-weight: 700; color: #34F5C5; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.veh-line { font-size: 11.5px; color: #8CA3C3; line-height: 1.75; }
+.veh-plate { font-size: 15px; font-weight: 700; color: #0E8A8A; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.veh-line { font-size: 11.5px; color: #4A7672; line-height: 1.75; }
 .veh-close {
-  position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #5A7194;
+  position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #5A7A76;
   font-size: 16px; cursor: pointer;
 }
-.veh-close:hover { color: #E6F1FF; }
+.veh-close:hover { color: #12403E; }
 
 /* ===== 图表区 / 告警区 ===== */
 .charts { display: grid; grid-template-columns: 1fr 1.3fr 1fr 1fr; gap: 14px; }
@@ -377,9 +377,9 @@ usePolling(load, 30000)
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   padding: 14px 16px; backdrop-filter: blur(10px); min-width: 0;
 }
-.card h3 { font-size: 12.5px; font-weight: 600; color: #8CA3C3; letter-spacing: .02em; margin: 0 0 12px; }
-.h3-sub { font-size: 10.5px; color: #3D5578; font-weight: 400; margin-left: 6px; }
-.up { color: #34F5C5; }
+.card h3 { font-size: 12.5px; font-weight: 600; color: #4A7672; letter-spacing: .02em; margin: 0 0 12px; }
+.h3-sub { font-size: 10.5px; color: #8AA6A2; font-weight: 400; margin-left: 6px; }
+.up { color: #0E8A8A; }
 .down { color: #F87171; }
 
 /* ===== 响应式 ===== */

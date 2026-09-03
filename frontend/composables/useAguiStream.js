@@ -11,6 +11,7 @@ export function useAguiStream() {
   const feedbackGiven = ref(0)
   const clarify = ref(null)
   const followUpSuggestions = ref([])
+  const visualizations = ref([])
 
   let handle = null
   let pendingDelta = ''
@@ -27,6 +28,7 @@ export function useAguiStream() {
     feedbackGiven.value = 0
     clarify.value = null
     followUpSuggestions.value = []
+    visualizations.value = []
     pendingDelta = ''
     flushScheduled = false
   }
@@ -112,6 +114,10 @@ export function useAguiStream() {
         }
         phase.value = 'answering'
         break
+      case 'VIS_SPEC':
+        // UI Schema frame: inline visualization rendered by VisualizationRenderer
+        if (payload && payload.type === 'visualization') visualizations.value.push(payload)
+        break
       case 'CHART_SPEC':
         // 图表规格帧：合并进 result，供 ChartPanel 渲染
         result.value = Object.assign({}, result.value || {}, { chart: payload })
@@ -180,7 +186,7 @@ export function useAguiStream() {
 
   return {
     phase, tools, answer, result, runId, traceId, errorMsg, feedbackGiven,
-    clarify, followUpSuggestions,
+    clarify, followUpSuggestions, visualizations,
     toolCallCount, isRunning,
     start, cancel, rerun, rate
   }

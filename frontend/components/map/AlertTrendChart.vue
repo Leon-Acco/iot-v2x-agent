@@ -23,17 +23,17 @@ const option = computed(() => {
     tooltip: { trigger: 'axis', textStyle: { fontSize: 11 } },
     xAxis: {
       type: 'category', data: labels, boundaryGap: false,
-      axisLabel: { fontSize: 10, color: '#5A7194', interval: 5 },
+      axisLabel: { fontSize: 10, color: '#5A7A76', interval: 5 },
       axisLine: { lineStyle: { color: 'rgba(56,189,248,.18)' } }, axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
       splitLine: { lineStyle: { color: 'rgba(56,189,248,.08)' } },
-      axisLabel: { fontSize: 10, color: '#5A7194' }
+      axisLabel: { fontSize: 10, color: '#5A7A76' }
     },
     series: [{
       type: 'line', data: data, smooth: true, symbol: 'none',
-      lineStyle: { color: '#2DD4BF', width: 1.8 },
+      lineStyle: { color: '#0E8A8A', width: 1.8 },
       areaStyle: {
         color: {
           type: 'linear', x: 0, y: 0, x2: 0, y2: 1,

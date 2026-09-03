@@ -25,6 +25,8 @@ import java.util.Map;
 public class AdminStatsController {
 
     private final JdbcTemplate controlJdbcTemplate;
+    private final com.dst.v2xagent.query.SlowQueryRecorder slowQueryRecorder;
+    private final com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder;
 
     @GetMapping("/overview")
     public Map<String, Object> overview(HttpServletRequest request) {
@@ -76,6 +78,49 @@ public class AdminStatsController {
                 + " GROUP BY question ORDER BY cnt DESC LIMIT 10");
         out.put("uncoveredQuestions", uncovered);
 
+        return out;
+    }
+
+    /** 慢查询监控：内存环形缓冲（实时）+ 落库历史（近 50 条） */
+    @org.springframework.web.bind.annotation.GetMapping("/slow-queries")
+    public Map<String, Object> slowQueries(HttpServletRequest request) {
+        PermissionContext ctx = (PermissionContext) request.getAttribute(AuthFilter.ATTR_PERMISSION);
+        if (ctx == null || !ctx.isAdmin()) {
+            throw com.dst.v2xagent.common.ApiException.scopeDenied("仅管理员可用");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("recent", slowQueryRecorder.recent());
+        try {
+            out.put("history", controlJdbcTemplate.queryForList(
+                    "SELECT trace_id, capability_id, sql_fingerprint, duration_ms, row_count, username, created_at"
+                    + " FROM query_slow_log ORDER BY id DESC LIMIT 50"));
+        } catch (Exception e) {
+            out.put("history", List.of());
+        }
+        return out;
+    }
+
+    /** Agent Trace：最近 traceId 列表 */
+    @org.springframework.web.bind.annotation.GetMapping("/traces")
+    public Object traces(HttpServletRequest request) {
+        PermissionContext ctx = (PermissionContext) request.getAttribute(AuthFilter.ATTR_PERMISSION);
+        if (ctx == null || !ctx.isAdmin()) {
+            throw com.dst.v2xagent.common.ApiException.scopeDenied("仅管理员可用");
+        }
+        return traceRecorder.recentTraceIds(50);
+    }
+
+    /** Agent Trace：按 traceId 回查 span 明细与摘要 */
+    @org.springframework.web.bind.annotation.GetMapping("/traces/{traceId}")
+    public Map<String, Object> traceDetail(HttpServletRequest request,
+                                           @org.springframework.web.bind.annotation.PathVariable String traceId) {
+        PermissionContext ctx = (PermissionContext) request.getAttribute(AuthFilter.ATTR_PERMISSION);
+        if (ctx == null || !ctx.isAdmin()) {
+            throw com.dst.v2xagent.common.ApiException.scopeDenied("仅管理员可用");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("summary", traceRecorder.summarize(traceId));
+        out.put("spans", traceRecorder.byTraceId(traceId));
         return out;
     }
 }

@@ -49,6 +49,11 @@ public class ToolResultBridge {
         }
     }
 
+    /** 推送统一可视化帧（UI Schema，前端 VisualizationRenderer 按 renderer 分发） */
+    public void emitVisSpec(Map<String, Object> uiSchema) {
+        sink.emit(AgUiEvent.of("VIS_SPEC", uiSchema));
+    }
+
     /** 表格载荷：与旧链路前端契约一致 */
     private Map<String, Object> tablePayload(CapabilityDefinition def, TableResult table) {
         Map<String, Object> p = new LinkedHashMap<>();

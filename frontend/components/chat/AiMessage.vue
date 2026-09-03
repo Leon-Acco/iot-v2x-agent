@@ -9,6 +9,7 @@
 
     <ToolCallNarrative :tools="tools" />
 
+
     <template v-if="answer">
       <div class="answer-label">结论</div>
       <div class="ai-answer">{{ answer }}<span v-if="cancelled" class="cancelled-mark">（已手动停止生成）</span></div>

@@ -112,6 +112,10 @@ public class CapabilityDefinition {
         private int maxRows = 1000;
         private int timeoutMs = 15000;
         private int maxSpanDays = 90;
+        /** 扫描行数上限（治理口径：超大数据量查询转异步前的硬指标） */
+        private long maxScanRows = 10_000_000L;
+        /** 每分钟调用上限（0 = 不限流） */
+        private int rateLimitPerMinute = 60;
     }
 
     /** 缓存策略 */

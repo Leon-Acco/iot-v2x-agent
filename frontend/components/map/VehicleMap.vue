@@ -107,14 +107,14 @@ function scatterSeries(list) {
   const t = splitTiers(list)
   return [
     { type: 'scatter', coordinateSystem: 'geo', symbolSize: 5,
-      itemStyle: { color: '#F5B544', opacity: 0.55, borderColor: 'rgba(7,13,26,.6)', borderWidth: 0.5 },
+      itemStyle: { color: '#C77F1A', opacity: 0.55, borderColor: 'rgba(7,13,26,.6)', borderWidth: 0.5 },
       data: t.lost, zlevel: 2 },
     { type: 'scatter', coordinateSystem: 'geo', symbolSize: 5,
-      itemStyle: { color: '#5A7194', opacity: 0.7, borderColor: 'rgba(7,13,26,.6)', borderWidth: 0.5 },
+      itemStyle: { color: '#5A7A76', opacity: 0.7, borderColor: 'rgba(7,13,26,.6)', borderWidth: 0.5 },
       data: t.park, zlevel: 2 },
     { type: 'effectScatter', coordinateSystem: 'geo', symbolSize: 7,
       rippleEffect: { brushType: 'stroke', scale: 3.2 },
-      itemStyle: { color: '#2DD4BF', shadowBlur: 8, shadowColor: 'rgba(45,212,191,.8)' },
+      itemStyle: { color: '#0E8A8A', shadowBlur: 8, shadowColor: 'rgba(45,212,191,.8)' },
       data: t.run, zlevel: 3 }
   ]
 }
@@ -139,8 +139,8 @@ const mapBase = {
   roam: true, zoom: 1.05,
   scaleLimit: { min: 0.8, max: 8 },
   label: { show: false },
-  itemStyle: { borderColor: 'rgba(56,189,248,.35)', borderWidth: 0.8, areaColor: '#0D1830' },
-  emphasis: { label: { show: true, fontSize: 12, color: '#E6F1FF' }, itemStyle: { areaColor: '#1B3A5C' } },
+  itemStyle: { borderColor: 'rgba(56,189,248,.35)', borderWidth: 0.8, areaColor: '#E3EFEA' },
+  emphasis: { label: { show: true, fontSize: 12, color: '#12403E' }, itemStyle: { areaColor: '#BFE0D8' } },
   select: { disabled: true }
 }
 
@@ -154,8 +154,8 @@ function renderChina() {
     visualMap: {
       min: 0, max: max, left: 14, bottom: 14, calculable: false,
       text: ['车辆数', ''],
-      textStyle: { color: '#8CA3C3', fontSize: 11 },
-      inRange: { color: ['#10203F', '#155E75', '#2DD4BF'] }
+      textStyle: { color: '#4A7672', fontSize: 11 },
+      inRange: { color: ['#E9F4EF', '#7FCABB', '#0E8A8A'] }
     },
     series: [Object.assign({
       type: 'map', map: 'china',
@@ -264,23 +264,23 @@ defineExpose({ panToVehicle, backToChina, drillByName })
 .vmap { width: 100%; height: 100%; }
 .mode-switch {
   position: absolute; right: 14px; top: 14px; z-index: 6; display: flex; gap: 4px;
-  background: rgba(13, 24, 44, .78); border: 1px solid rgba(56, 189, 248, .22);
+  background: rgba(255, 255, 255, .86); border: 1px solid rgba(14, 138, 138, .2);
   border-radius: 10px; padding: 4px; backdrop-filter: blur(8px);
 }
 .mode-switch button {
-  font: inherit; font-size: 12px; color: #8CA3C3; background: none; border: 0;
+  font: inherit; font-size: 12px; color: #4A7672; background: none; border: 0;
   border-radius: 7px; padding: 6px 12px; cursor: pointer;
 }
-.mode-switch button.on { background: rgba(45, 212, 191, .16); color: #2DD4BF; font-weight: 600; }
+.mode-switch button.on { background: rgba(14, 138, 138, .16); color: #0E8A8A; font-weight: 600; }
 .back-chip {
   position: absolute; left: 14px; top: 14px; z-index: 6; cursor: pointer;
-  background: rgba(13, 24, 44, .78); border: 1px solid rgba(56, 189, 248, .22);
-  color: #2DD4BF; font-size: 12px; font-weight: 500;
+  background: rgba(255, 255, 255, .86); border: 1px solid rgba(14, 138, 138, .2);
+  color: #0E8A8A; font-size: 12px; font-weight: 500;
   border-radius: 999px; padding: 7px 16px; backdrop-filter: blur(8px);
 }
-.back-chip:hover { background: rgba(45, 212, 191, .14); }
+.back-chip:hover { background: rgba(14, 138, 138, .14); }
 .map-error {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  color: #F87171; font-size: 13px;
+  color: #DC4A3C; font-size: 13px;
 }
 </style>

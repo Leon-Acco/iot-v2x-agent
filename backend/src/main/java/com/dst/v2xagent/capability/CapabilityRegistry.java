@@ -99,9 +99,10 @@ public class CapabilityRegistry {
         reload();
     }
 
-    /** 更新（元数据变更自动递增版本，缓存 key 含版本自动失效） */
+    /** 更新（元数据变更自动递增版本，缓存 key 含版本自动失效；旧版本快照入历史表，禁止覆盖式修改） */
     public void update(CapabilityDefinition def) {
         CapabilityValidator.validate(def);
+        snapshotHistory(def.getId());
         def.setVersion(def.getVersion() + 1);
         controlJdbcTemplate.update("""
                 UPDATE capability_definition SET display=?, description=?, aliases=?, domain=?, readonly=?,
@@ -138,6 +139,45 @@ public class CapabilityRegistry {
                 toJson(def.getSourceTables()), toJson(def.getFreshnessPolicy()), toJson(def.getLimits()),
                 toJson(def.getCache()), toJson(def.getScopes()), def.getRowFilterPolicy(),
                 toJson(def.getSampleQuestions()), def.getSqlTemplate(), def.getStatus(), def.getVersion(), def.getOwner());
+    }
+
+    /** 旧版本快照入历史表（更新 / 上下线前调用，保证旧 Agent 行为可追溯） */
+    private void snapshotHistory(String id) {
+        CapabilityDefinition old = index.get(id);
+        if (old == null) {
+            return;
+        }
+        try {
+            controlJdbcTemplate.update(
+                    "INSERT INTO capability_definition_history (capability_id, version, snapshot, status) VALUES (?,?,?,?)",
+                    id, old.getVersion(), jsonMapper.writeValueAsString(old), old.getStatus());
+        } catch (Exception e) {
+            log.warn("capability 历史快照入库失败: {}", e.getMessage());
+        }
+    }
+
+    /** 版本历史列表（新到旧） */
+    public java.util.List<java.util.Map<String, Object>> listVersions(String id) {
+        return controlJdbcTemplate.queryForList(
+                "SELECT capability_id, version, status, updated_at FROM capability_definition_history"
+                + " WHERE tenant_id = 'T1' AND capability_id = ? ORDER BY version DESC",
+                id);
+    }
+
+    /** 读取指定历史版本定义（灰度回滚 / 审计用） */
+    public java.util.Optional<CapabilityDefinition> getVersion(String id, int version) {
+        java.util.List<String> rows = controlJdbcTemplate.queryForList(
+                "SELECT snapshot FROM capability_definition_history"
+                + " WHERE tenant_id = 'T1' AND capability_id = ? AND version = ?",
+                String.class, id, version);
+        if (rows.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            return java.util.Optional.of(jsonMapper.readValue(rows.get(0), CapabilityDefinition.class));
+        } catch (Exception e) {
+            throw new IllegalStateException("capability 历史版本解析失败: " + id + "@v" + version, e);
+        }
     }
 
     private CapabilityDefinition rowToDefinition(java.sql.ResultSet rs) throws java.sql.SQLException {

@@ -74,24 +74,24 @@ function hasLoc(a) {
 .alert-table { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .at-row {
   display: grid; grid-template-columns: 64px 1.1fr 1.2fr 1.2fr 0.9fr 0.8fr 64px;
-  gap: 10px; align-items: center; padding: 8px 4px; font-size: 12px; color: #8CA3C3;
+  gap: 10px; align-items: center; padding: 8px 4px; font-size: 12px; color: #4A7672;
 }
-.at-head { color: #5A7194; font-size: 11px; letter-spacing: .04em; border-bottom: 1px solid rgba(56, 189, 248, .12); }
+.at-head { color: #5A7A76; font-size: 11px; letter-spacing: .04em; border-bottom: 1px solid rgba(56, 189, 248, .12); }
 .at-body { overflow-y: auto; min-height: 0; max-height: 220px; }
 .at-body .at-row { border-bottom: 1px solid rgba(56, 189, 248, .06); }
-.c-plate { color: #E6F1FF; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-plate { color: #12403E; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-loc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-time { font-family: var(--font-num); color: #5A7194; }
+.c-time { font-family: var(--font-num); color: #5A7A76; }
 .lv-pill { font-style: normal; font-size: 10.5px; border-radius: 999px; padding: 2px 9px; }
-.lv-pill.sev { background: rgba(248, 113, 113, .16); color: #F87171; }
-.lv-pill.mid { background: rgba(245, 181, 68, .14); color: #F5B544; }
-.lv-pill.low { background: rgba(90, 113, 148, .18); color: #8CA3C3; }
-.st-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #F5B544; margin-right: 6px; }
-.st-dot.done { background: #2DD4BF; }
+.lv-pill.sev { background: rgba(248, 113, 113, .16); color: #DC4A3C; }
+.lv-pill.mid { background: rgba(245, 181, 68, .14); color: #C77F1A; }
+.lv-pill.low { background: rgba(90, 113, 148, .18); color: #4A7672; }
+.st-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #C77F1A; margin-right: 6px; }
+.st-dot.done { background: #0E8A8A; }
 .loc-btn {
-  font: inherit; font-size: 11.5px; color: #2DD4BF; background: rgba(45, 212, 191, .12);
-  border: 1px solid rgba(45, 212, 191, .3); border-radius: 7px; padding: 3px 10px; cursor: pointer;
+  font: inherit; font-size: 11.5px; color: #0E8A8A; background: rgba(14, 138, 138, .12);
+  border: 1px solid rgba(14, 138, 138, .3); border-radius: 7px; padding: 3px 10px; cursor: pointer;
 }
-.loc-btn:disabled { color: #3D5578; background: none; border-color: rgba(56, 189, 248, .12); cursor: not-allowed; }
-.at-empty { padding: 18px 4px; font-size: 12px; color: #5A7194; }
+.loc-btn:disabled { color: #8AA6A2; background: none; border-color: rgba(56, 189, 248, .12); cursor: not-allowed; }
+.at-empty { padding: 18px 4px; font-size: 12px; color: #5A7A76; }
 </style>

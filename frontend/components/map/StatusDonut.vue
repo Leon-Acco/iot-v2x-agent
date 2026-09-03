@@ -42,10 +42,10 @@ const arcs = computed(() => {
 .donut-center {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px;
 }
-.donut-center b { font-size: 17px; color: #E6F1FF; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
-.donut-center span { font-size: 10px; color: #5A7194; margin-top: 5px; }
+.donut-center b { font-size: 17px; color: #12403E; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.donut-center span { font-size: 10px; color: #5A7A76; margin-top: 5px; }
 .legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-.legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8CA3C3; }
-.legend-row b { margin-left: auto; color: #E6F1FF; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4A7672; }
+.legend-row b { margin-left: auto; color: #12403E; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
 .sw { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 </style>

@@ -13,13 +13,13 @@ import java.util.Map;
  * TableResult 的 JSON 编解码（Redis L2 缓存用）
  * Object[] 行统一序列化为 JSON 数组；日期时间类型转字符串。
  */
-final class TableResultJsonCodec {
+public final class TableResultJsonCodec {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private TableResultJsonCodec() {}
 
-    static String encode(TableResult result) throws Exception {
+    public static String encode(TableResult result) throws Exception {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("columns", result.columns());
         List<List<Object>> rows = new ArrayList<>();
@@ -37,7 +37,7 @@ final class TableResultJsonCodec {
     }
 
     @SuppressWarnings("unchecked")
-    static TableResult decode(String json) throws Exception {
+    public static TableResult decode(String json) throws Exception {
         Map<String, Object> map = MAPPER.readValue(json, Map.class);
         List<CapabilityDefinition.ColumnDef> columns = MAPPER.convertValue(map.get("columns"),
                 MAPPER.getTypeFactory().constructCollectionType(List.class, CapabilityDefinition.ColumnDef.class));
