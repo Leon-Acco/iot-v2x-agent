@@ -62,22 +62,26 @@ def main():
         actual = None
         refused = False
         clarified = False
-        with opener.open(req, timeout=30) as resp:
-            for raw in resp.read().decode("utf-8", "ignore").splitlines():
-                if raw.startswith("data:"):
-                    frame = json.loads(raw[5:])
-                    if frame.get("type") == "TOOL_CALL_START":
-                        actual = frame.get("toolCallId")
-                    elif frame.get("type") == "CUSTOM" and frame.get("name") == "REFUSE":
-                        refused = True
-                    elif frame.get("type") == "CUSTOM" and frame.get("name") == "CLARIFY":
-                        clarified = True
-        ok = (actual == expected) if expected else (refused or clarified)
+        timed_out = False
+        try:
+            with opener.open(req, timeout=120) as resp:
+                for raw in resp.read().decode("utf-8", "ignore").splitlines():
+                    if raw.startswith("data:"):
+                        frame = json.loads(raw[5:])
+                        if frame.get("type") == "TOOL_CALL_START":
+                            actual = frame.get("toolCallId")
+                        elif frame.get("type") == "CUSTOM" and frame.get("name") == "REFUSE":
+                            refused = True
+                        elif frame.get("type") == "CUSTOM" and frame.get("name") == "CLARIFY":
+                            clarified = True
+        except Exception:
+            timed_out = True
+        ok = ((actual == expected) if expected else (refused or clarified)) and not timed_out
         if ok:
             passed += 1
         else:
-            failed.append((question, expected, actual or ("REFUSE" if refused else "CLARIFY")))
-        print(f"{'PASS' if ok else 'FAIL'}  {question}  ->  {actual or ('REFUSE' if refused else 'CLARIFY')}（期望 {expected or '拒答/澄清'}）")
+            failed.append((question, expected, "TIMEOUT" if timed_out else (actual or ("REFUSE" if refused else "CLARIFY"))))
+        print(f"{'PASS' if ok else 'FAIL'}  {question}  ->  {'TIMEOUT' if timed_out else (actual or ('REFUSE' if refused else 'CLARIFY'))}（期望 {expected or '拒答/澄清'}）")
 
     print(f"\n===== 准确率: {passed}/{len(CASES)} = {passed/len(CASES)*100:.0f}%（P0 目标 ≥85%）=====")
     if failed:

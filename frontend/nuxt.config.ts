@@ -16,12 +16,18 @@ export default defineNuxtConfig({
     }
   },
   nitro: {
-    devProxy: {
-      '/agui': { target: 'http://localhost:8080/agui', changeOrigin: true },
-      '/ag-ui': { target: 'http://localhost:8080/ag-ui', changeOrigin: true },
-      '/api': { target: 'http://localhost:8080/api', changeOrigin: true },
+    // 生产代理：routeRules 在 dev 与 nuxt build 生产构建中均生效（h3 直转，支持 SSE 流式）
+    // proxy 目标必须携带相同路径前缀，否则剥前缀后后端 404
+    routeRules: {
+      '/agui': { proxy: 'http://localhost:8080/agui' },
+      '/agui/**': { proxy: 'http://localhost:8080/agui/**' },
+      '/ag-ui': { proxy: 'http://localhost:8080/ag-ui' },
+      '/ag-ui/**': { proxy: 'http://localhost:8080/ag-ui/**' },
+      '/api': { proxy: 'http://localhost:8080/api' },
+      '/api/**': { proxy: 'http://localhost:8080/api/**' },
       // /admin 统一代理（含 capabilities/audit/memory/stats/a2a）
-      '/admin': { target: 'http://localhost:8080/admin', changeOrigin: true }
+      '/admin': { proxy: 'http://localhost:8080/admin' },
+      '/admin/**': { proxy: 'http://localhost:8080/admin/**' }
     }
   },
   devtools: { enabled: false }
