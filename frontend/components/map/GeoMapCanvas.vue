@@ -68,8 +68,8 @@ function statOf(name) {
 
 // 默认蓝色系；传入 palette 时用页面主题色
 const PAL = computed(() => props.palette || {
-  light: '#DBEAFE', mid: '#93C5FD', deep: '#2563EB',
-  area: '#EDF3FE', hover: '#93C5FD', provArea: '#F1F6FE', provHover: '#BFDBFE'
+  light: '#d3efe4', mid: '#8fd3bc', deep: '#0f8a6a',
+  area: '#edf6f1', hover: '#8fd3bc', provArea: '#f0f7f3', provHover: '#bfdfd1'
 })
 
 // 两个 hex 色之间按 t 插值
@@ -195,7 +195,7 @@ async function renderProvince(name, feature) {
           type: 'effectScatter', coordinateSystem: 'geo',
           symbolSize: 8,
           rippleEffect: { brushType: 'stroke', scale: 2.6 },
-          itemStyle: { color: PAL.value.deep, borderColor: '#fff', borderWidth: 1, shadowBlur: 4, shadowColor: 'rgba(37,99,235,.5)' },
+          itemStyle: { color: PAL.value.deep, borderColor: '#fff', borderWidth: 1, shadowBlur: 4, shadowColor: 'rgba(15, 138, 106,.5)' },
           data: onlinePts,
           zlevel: 3
         }

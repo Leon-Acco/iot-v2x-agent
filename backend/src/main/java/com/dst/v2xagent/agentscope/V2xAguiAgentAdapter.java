@@ -23,6 +23,9 @@ public class V2xAguiAgentAdapter extends AguiAgentAdapter {
         if (agent instanceof V2xHarnessAgent v2x) {
             return v2x.runPipeline(input, runtimeContext);
         }
+        if (agent instanceof com.dst.v2xagent.copilot.V2xCopilotAgent copilot) {
+            return copilot.runPipeline(input, runtimeContext);
+        }
         return super.run(input, runtimeContext);
     }
 }

@@ -121,7 +121,7 @@ onMounted(async () => {
 .mono { font-family: "SF Mono", Consolas, monospace; color: var(--text-2); }
 .rank-num { color: var(--text-3); font-family: var(--font-num); }
 .rank-track { height: 6px; border-radius: 3px; background: #F0F0F0; overflow: hidden; }
-.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #93C5FD, #2563EB); }
+.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #8fd3bc, #0f8a6a); }
 .err-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; }
 .err-code { color: var(--danger); }
 .err-cnt { color: var(--text-3); }

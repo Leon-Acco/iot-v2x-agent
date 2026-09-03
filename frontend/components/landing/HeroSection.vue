@@ -45,33 +45,33 @@ h1 {
 }
 .tags {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
-  margin-top: 22px; font-size: 13.5px; font-weight: 500; color: #2563EB;
+  margin-top: 22px; font-size: 13.5px; font-weight: 500; color: #0f8a6a;
 }
 .tags i { width: 4px; height: 4px; border-radius: 50%; background: #38BDF8; }
 .cta-row { display: flex; align-items: center; gap: 16px; margin-top: 34px; }
 .cta-primary {
   display: inline-flex; align-items: center; gap: 10px;
   height: 52px; padding: 0 28px; border: none; border-radius: 999px;
-  background: linear-gradient(135deg, #38BDF8, #2563EB 60%, #1D4ED8);
+  background: linear-gradient(135deg, #38BDF8, #0f8a6a 60%, #0b6e55);
   color: #fff; font-size: 15px; font-weight: 600; letter-spacing: .02em; cursor: pointer;
-  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.32);
+  box-shadow: 0 14px 30px rgba(15, 138, 106, 0.32);
   transition: transform .15s ease, box-shadow .2s ease;
 }
-.cta-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(37, 99, 235, 0.38); }
+.cta-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(15, 138, 106, 0.38); }
 .cta-primary:hover svg { transform: translateX(3px); }
 .cta-primary svg { transition: transform .15s ease; }
 .cta-primary:active { transform: translateY(0); }
-.cta-primary:focus-visible { outline: 2px solid #1D4ED8; outline-offset: 3px; }
+.cta-primary:focus-visible { outline: 2px solid #0b6e55; outline-offset: 3px; }
 .cta-secondary {
   display: inline-flex; align-items: center;
   height: 52px; padding: 0 26px; border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.28);
+  border: 1px solid rgba(15, 138, 106, 0.28);
   background: rgba(255, 255, 255, 0.6);
-  font-size: 15px; font-weight: 500; color: #2563EB;
+  font-size: 15px; font-weight: 500; color: #0f8a6a;
   transition: background .15s ease, border-color .15s ease;
 }
-.cta-secondary:hover { background: rgba(37, 99, 235, 0.07); border-color: #2563EB; }
-.cta-secondary:focus-visible { outline: 2px solid #2563EB; outline-offset: 3px; }
+.cta-secondary:hover { background: rgba(15, 138, 106, 0.07); border-color: #0f8a6a; }
+.cta-secondary:focus-visible { outline: 2px solid #0f8a6a; outline-offset: 3px; }
 .trust { display: flex; gap: 24px; margin-top: 34px; }
 .trust span { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #475569; }
 .trust .ok { width: 7px; height: 7px; border-radius: 50%; background: #059669; display: inline-block; }

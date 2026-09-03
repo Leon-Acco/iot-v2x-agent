@@ -62,5 +62,5 @@ const rank = computed(() => {
 .rank-plate { color: var(--text-1); font-weight: 600; }
 .rank-hours { color: var(--text-3); font-family: var(--font-num); }
 .rank-bar-track { height: 6px; border-radius: 3px; background: #F0F0F0; overflow: hidden; }
-.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #93C5FD, #2563EB); }
+.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #8fd3bc, #0f8a6a); }
 </style>

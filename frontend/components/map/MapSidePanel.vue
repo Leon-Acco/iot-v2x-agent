@@ -14,7 +14,7 @@ const props = defineProps({
   brands: { type: Array, default: () => [] }
 })
 
-const PIE_COLORS = ['#2563EB', '#3B82F6', '#F59E0B', '#22C55E', '#93C5FD', '#93C5FD', '#A1A1A1', '#D4D4D4']
+const PIE_COLORS = ['#0f8a6a', '#3fb48d', '#F59E0B', '#22C55E', '#8fd3bc', '#8fd3bc', '#A1A1A1', '#D4D4D4']
 
 const onlineCount = computed(() => props.vehicles.filter(v => Number(v.online) === 1).length)
 const rate = computed(() => {
@@ -27,7 +27,7 @@ const gaugeOption = computed(() => ({
     type: 'gauge',
     startAngle: 210, endAngle: -30, min: 0, max: 100,
     radius: '100%', center: ['50%', '62%'],
-    progress: { show: true, width: 10, itemStyle: { color: '#2563EB' } },
+    progress: { show: true, width: 10, itemStyle: { color: '#0f8a6a' } },
     axisLine: { lineStyle: { width: 10, color: [[1, '#E5E5E5']] } },
     axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
     pointer: { show: false }, anchor: { show: false },

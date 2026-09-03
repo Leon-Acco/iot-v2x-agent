@@ -80,7 +80,7 @@ export async function parseStream(reader, onFrame) {
 export function runAgui(req, handlers) {
   const controller = new AbortController()
   const runId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '')
-  const profileId = req.profileId || 'device_ops'
+  const profileId = req.profileId || 'fleet_copilot'
   const body = {
     threadId: req.threadId || runId,
     runId,

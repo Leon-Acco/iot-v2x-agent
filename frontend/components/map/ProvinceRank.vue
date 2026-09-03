@@ -46,6 +46,6 @@ function pct(total) {
 .pv-name { font-weight: 600; color: var(--text-1); }
 .pv-num { color: var(--text-3); font-family: var(--font-num); }
 .pv-track { height: 6px; border-radius: 3px; background: #F0F0F0; overflow: hidden; }
-.pv-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #93C5FD, #2563EB); }
+.pv-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #8fd3bc, #0f8a6a); }
 .pv-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
 </style>

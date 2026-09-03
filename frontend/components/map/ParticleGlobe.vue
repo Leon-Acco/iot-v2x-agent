@@ -58,7 +58,7 @@ function latLngToVec3(lat, lng, r) {
 
 // 解析页面主题配色（默认蓝色系）
 function pal() {
-  const p = props.palette || { deep: '#2563EB', mid: '#93C5FD', base: '#B9CDE8' }
+  const p = props.palette || { deep: '#0f8a6a', mid: '#8fd3bc', base: '#B9CDE8' }
   return {
     deep: new THREE.Color(p.deep),
     mid: new THREE.Color(p.mid),

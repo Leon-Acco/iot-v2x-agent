@@ -40,6 +40,6 @@ function pick(it) { if (props.clickable) emit('pick', it) }
 .rank-track { height: 5px; border-radius: 3px; background: rgba(56, 189, 248, .08); overflow: hidden; margin-top: 4px; }
 .rank-bar { height: 100%; border-radius: 3px; }
 .bar-teal { background: linear-gradient(90deg, #155E75, #2DD4BF); }
-.bar-cyan { background: linear-gradient(90deg, #1D4ED8, #38BDF8); }
+.bar-cyan { background: linear-gradient(90deg, #0b6e55, #38BDF8); }
 .rank-empty { font-size: 12px; color: #5A7194; padding: 8px 0; }
 </style>

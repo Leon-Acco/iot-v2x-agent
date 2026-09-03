@@ -53,7 +53,7 @@ defineEmits(['edit', 'dryrun', 'status'])
 .cap-name { font-weight: 600; }
 .cap-aliases { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .kind-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #F3F4F6; color: var(--text-2); }
-.kind-tag.orchestration { background: #EFF6FF; color: #4F46E5; }
+.kind-tag.orchestration { background: #eaf6f1; color: #4F46E5; }
 .ops { white-space: nowrap; }
 .op { padding: 4px 10px; font-size: 12px; }
 .op.up { color: var(--success); }

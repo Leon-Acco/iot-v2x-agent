@@ -39,9 +39,9 @@ const composer = ref(null)
 let editFromId = null
 
 const samples = [
-  '今天车队在线率怎么样',
-  '川A62XZ1 昨天跑了多少公里',
-  '分析一下最近三天的告警分布'
+  '近 7 天各类告警次数',
+  '粤BD96880 最近怎么回事',
+  '离线超 24 小时的车有哪些'
 ]
 
 const followUps = computed(() => {
@@ -107,7 +107,7 @@ function send(q) {
   const s = sessions.value.find(x => x.id === activeId.value)
   if (s && (s.title === '新会话' || !s.title)) s.title = q.slice(0, 18)
   watch(stream.phase, (p) => { if (p === 'done' || p === 'error' || p === 'cancelled') persist() })
-  stream.start(q, 'device_ops', activeId.value)
+  stream.start(q, 'fleet_copilot', activeId.value)
 }
 
 function onStop() {
@@ -155,7 +155,7 @@ function onRetry(aiMsg) {
   if (idx < 0) return
   const fresh = markRaw(useAguiStream())
   messages.value.splice(idx, 1, { id: aiMsg.id, role: 'ai', question: aiMsg.question, stream: fresh })
-  fresh.start(aiMsg.question, 'device_ops', activeId.value)
+  fresh.start(aiMsg.question, 'fleet_copilot', activeId.value)
 }
 
 // 持久化：会话列表 + 当前会话消息快照

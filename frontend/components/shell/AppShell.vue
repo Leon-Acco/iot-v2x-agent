@@ -59,11 +59,11 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   height: calc(100vh - 16px);
   margin: 8px;
   padding: 10px 10px 10px 0;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.86), rgba(30, 64, 175, 0.92));
+  background: linear-gradient(180deg, rgba(15, 138, 106, 0.86), rgba(11, 110, 85, 0.92));
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 22px;
   overflow: hidden;
-  box-shadow: 0 18px 48px rgba(30, 64, 175, 0.22), 0 4px 12px rgba(30, 64, 175, 0.10);
+  box-shadow: 0 18px 48px rgba(11, 110, 85, 0.22), 0 4px 12px rgba(11, 110, 85, 0.10);
   display: flex;
 }
 /* 绿色主题：设备孪生地图页（DST 视觉稿色系） */

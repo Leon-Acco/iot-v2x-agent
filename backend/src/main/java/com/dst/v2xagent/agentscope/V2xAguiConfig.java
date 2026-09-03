@@ -30,14 +30,23 @@ public class V2xAguiConfig {
 
     @Bean
     public AguiAgentRegistryCustomizer v2xAgentRegistry(RunOrchestrator orchestrator,
-                                                        StringRedisTemplate redisTemplate) {
-        // 并发闸门：超限直接返回系统繁忙（两个 profile 共享）
+                                                        StringRedisTemplate redisTemplate,
+                                                        com.dst.v2xagent.copilot.CopilotQueryRouter queryRouter,
+                                                        org.springframework.beans.factory.ObjectProvider<com.dst.v2xagent.copilot.CopilotRuntime> copilotProvider) {
+        // 并发闸门：超限直接返回系统繁忙（所有 profile 共享）
         Semaphore runPermits = new Semaphore(200);
         return registry -> {
             registry.registerFactory("data_base",
                     () -> new V2xHarnessAgent("data_base", orchestrator, redisTemplate, runPermits));
             registry.registerFactory("device_ops",
                     () -> new V2xHarnessAgent("device_ops", orchestrator, redisTemplate, runPermits));
+            // 多 Agent 编排线路（仅非 mock 模式可用：依赖模型客户端）
+            com.dst.v2xagent.copilot.CopilotRuntime copilot = copilotProvider.getIfAvailable();
+            if (copilot != null) {
+                registry.registerFactory("fleet_copilot",
+                        () -> new com.dst.v2xagent.copilot.V2xCopilotAgent(
+                                "fleet_copilot", copilot, queryRouter, redisTemplate, runPermits));
+            }
         };
     }
 }

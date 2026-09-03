@@ -140,7 +140,7 @@ function renderMarkers(provinceName) {
       radius: online ? 7 : 5,
       strokeColor: '#FFFFFF',
       strokeWeight: 1.5,
-      fillColor: online ? '#2563EB' : '#A3A3A3',
+      fillColor: online ? '#0f8a6a' : '#A3A3A3',
       fillOpacity: online ? 0.9 : 0.6,
       zIndex: online ? 20 : 10,
       cursor: 'pointer',

@@ -25,20 +25,20 @@ const iconSvg = computed(() => ICONS[props.icon] || ICONS.monitor)
 <style scoped>
 .feature-card {
   background: #fff;
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(15, 138, 106, 0.12);
   border-radius: 16px;
   padding: 26px 24px;
   transition: transform .2s ease, box-shadow .25s ease, border-color .2s ease, background .25s ease;
 }
 .feature-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: rgba(15, 138, 106, 0.35);
   background: linear-gradient(180deg, #FFFFFF 0%, #F5F9FF 100%);
-  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 16px 36px rgba(15, 138, 106, 0.12);
 }
 .ic {
   width: 48px; height: 48px; border-radius: 12px;
-  background: rgba(37, 99, 235, 0.08); color: #2563EB;
+  background: rgba(15, 138, 106, 0.08); color: #0f8a6a;
   display: grid; place-items: center;
 }
 .ic :deep(svg) { width: 22px; height: 22px; }

@@ -137,7 +137,7 @@ export function useAguiStream() {
   function start(question, profileId, threadId) {
     reset()
     phase.value = 'understanding'
-    handle = runAgui({ question, profileId: profileId || 'device_ops', threadId }, {
+    handle = runAgui({ question, profileId: profileId || 'fleet_copilot', threadId }, {
       onEvent,
       onDone() {
         if (pendingDelta) { answer.value += pendingDelta; pendingDelta = '' }
