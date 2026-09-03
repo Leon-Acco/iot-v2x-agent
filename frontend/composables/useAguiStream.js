@@ -12,6 +12,7 @@ export function useAguiStream() {
   const clarify = ref(null)
   const followUpSuggestions = ref([])
   const visualizations = ref([])
+  const traceSteps = ref([])
 
   let handle = null
   let pendingDelta = ''
@@ -29,6 +30,7 @@ export function useAguiStream() {
     clarify.value = null
     followUpSuggestions.value = []
     visualizations.value = []
+    traceSteps.value = []
     pendingDelta = ''
     flushScheduled = false
   }
@@ -114,6 +116,10 @@ export function useAguiStream() {
         }
         phase.value = 'answering'
         break
+      case 'AGENT_TRACE':
+        // Agent 轨迹帧：执行步骤流（类型/名称/耗时/状态）
+        if (payload && Array.isArray(payload.steps)) traceSteps.value = payload.steps
+        break
       case 'VIS_SPEC':
         // UI Schema frame: inline visualization rendered by VisualizationRenderer
         if (payload && payload.type === 'visualization') visualizations.value.push(payload)
@@ -186,7 +192,7 @@ export function useAguiStream() {
 
   return {
     phase, tools, answer, result, runId, traceId, errorMsg, feedbackGiven,
-    clarify, followUpSuggestions, visualizations,
+    clarify, followUpSuggestions, visualizations, traceSteps,
     toolCallCount, isRunning,
     start, cancel, rerun, rate
   }

@@ -1,0 +1,3 @@
+line 01 with 'quotes' and "dquotes" ascii only
+line 02 with 'quotes' and "dquotes" ascii only
+line 03 with 'quotes' and "dquotes" ascii only

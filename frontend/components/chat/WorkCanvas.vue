@@ -12,6 +12,20 @@
     </div>
 
     <div v-else class="wc-body">
+      <!-- agent trace card: execution steps from AGENT_TRACE frame -->
+      <div v-if="traceSteps.length" class="wc-trace">
+        <div class="wc-trace-title">执行轨迹</div>
+        <div class="wc-trace-steps">
+          <div v-for="(s, i) in traceSteps" :key="i" class="wc-trace-step">
+            <span class="wc-trace-icon" :class="s.status === 'ok' ? 'ok' : 'err'">
+              {{ s.status === 'ok' ? '✓' : '✗' }}
+            </span>
+            <span class="wc-trace-name">{{ s.type }}<template v-if="s.name"> · {{ s.name }}</template></span>
+            <span class="wc-trace-ms">{{ s.duration_ms }}ms</span>
+          </div>
+        </div>
+      </div>
+
       <!-- visualization cards (generate_visualization outputs) -->
       <div v-if="visualizations.length" class="wc-viz-grid">
         <VisualizationRenderer v-for="(v, i) in visualizations" :key="i" :vis="v" />
@@ -52,7 +66,11 @@ const visualizations = computed(() => {
   return props.stream.visualizations.value
 })
 const result = computed(() => (props.stream && props.stream.result ? props.stream.result.value : null))
-const isEmpty = computed(() => !visualizations.value.length && !result.value)
+const traceSteps = computed(() => {
+  if (!props.stream || !props.stream.traceSteps) return []
+  return props.stream.traceSteps.value
+})
+const isEmpty = computed(() => !visualizations.value.length && !result.value && !traceSteps.value.length)
 const emptyText = computed(() => props.sampleHint || EMPTY)
 
 const title = computed(() => {
@@ -110,4 +128,16 @@ const chartOption = computed(() => {
 .wc-card-title { font-size: 14px; font-weight: 600; color: var(--text-1, #171717); }
 .wc-card-caption { display: block; font-size: 12px; color: var(--text-3, #737373); margin-top: 2px; }
 .wc-table-wrap { margin-top: 12px; }
+</style>
+
+<style scoped>
+.wc-trace { margin-bottom: 12px; padding: 10px 14px; background: rgba(255,255,255,.72); border-radius: 10px; }
+.wc-trace-title { font-size: 12px; font-weight: 600; color: #12403E; margin-bottom: 6px; }
+.wc-trace-steps { display: flex; flex-direction: column; gap: 4px; }
+.wc-trace-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #3D5A54; }
+.wc-trace-icon { width: 16px; text-align: center; }
+.wc-trace-icon.ok { color: #0E8A8A; }
+.wc-trace-icon.err { color: #D4564E; }
+.wc-trace-name { flex: 1; }
+.wc-trace-ms { color: #7A938D; font-variant-numeric: tabular-nums; }
 </style>

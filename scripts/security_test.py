@@ -1,10 +1,11 @@
 """安全用例测试：越权访问 + 超范围拒答"""
 import json
 import uuid
+import os
 import urllib.request
 import http.cookiejar
 
-BASE = "http://localhost:8080"
+BASE = os.environ.get("V2X_BASE", "http://localhost:8080")
 
 def login(user, pwd):
     cj = http.cookiejar.CookieJar()

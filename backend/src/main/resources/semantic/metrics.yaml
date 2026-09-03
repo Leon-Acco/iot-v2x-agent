@@ -63,4 +63,4 @@
   value_column: drive_times
   aggregate: sum
   dimensions: [day]
-  dimension_columns: {day: stat_date}
+  dimension_columns: {day: query_date}

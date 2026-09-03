@@ -110,7 +110,7 @@ public class SemanticMemoryStore {
         if (text == null) {
             return "";
         }
-        String[] tokens = text.replaceAll("[+-><()~*'"@]+", " ").trim().split("\\s+");
+        String[] tokens = text.replaceAll("[+-><()~*'\"@]+", " ").trim().split("\\s+");
         StringBuilder sb = new StringBuilder();
         for (String t : tokens) {
             if (t.length() >= 2) {

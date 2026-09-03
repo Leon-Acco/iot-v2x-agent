@@ -1,10 +1,11 @@
 """P0 验收回归：30 条样例问题 → capability 选择准确率（目标 ≥85%）"""
 import json
 import uuid
+import os
 import urllib.request
 import http.cookiejar
 
-BASE = "http://localhost:8080"
+BASE = os.environ.get("V2X_BASE", "http://localhost:8080")
 
 # (问题, 期望 capability_id, None=期望拒答/澄清)
 CASES = [

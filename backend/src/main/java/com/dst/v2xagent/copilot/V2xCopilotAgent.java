@@ -128,6 +128,8 @@ public class V2xCopilotAgent implements Agent {
                      PermissionContext ctx, AguiFluxSink sink) {
         long start = System.currentTimeMillis();
         String traceId = UUID.randomUUID().toString().replace("-", "");
+        // 追踪上下文：本线程驱动整条管线，ThreadLocal 在此生效
+        com.dst.v2xagent.observability.trace.TraceContext.begin(traceId);
         String status = "SUCCESS";
         String errorCode = null;
         String failedStage = null;
@@ -148,7 +150,11 @@ public class V2xCopilotAgent implements Agent {
 
             sink.emit(AgUiEvent.stepStarted("route", "正在分配专家 Agent"));
             checkCancelled(input.runId());
-            SupervisorRouter.RouteResult rr = router.route(input.question(), historyTail(history));
+            SupervisorRouter.RouteResult rr;
+            try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                         com.dst.v2xagent.observability.trace.TraceContext.span("agent", "route")) {
+                rr = router.route(input.question(), historyTail(history));
+            }
             routeTag = rr.route();
             sink.emit(AgUiEvent.stepFinished("route"));
             sink.emit(AgUiEvent.of("AGENT_ROUTE", Map.of(
@@ -166,7 +172,10 @@ public class V2xCopilotAgent implements Agent {
                 return;
             }
             if ("anomaly".equals(rr.route())) {
-                rowCount = anomalyWorkflow(input, rr, ctx, sink, conclusion);
+                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                             com.dst.v2xagent.observability.trace.TraceContext.span("agent", "anomaly_workflow")) {
+                    rowCount = anomalyWorkflow(input, rr, ctx, sink, conclusion);
+                }
             } else {
                 SpecialistAgents.Domain domain = switch (rr.route()) {
                     case "vehicle" -> SpecialistAgents.Domain.VEHICLE;
@@ -175,7 +184,10 @@ public class V2xCopilotAgent implements Agent {
                     case "mileage" -> SpecialistAgents.Domain.MILEAGE;
                     default -> SpecialistAgents.Domain.CROSS;
                 };
-                specialistRun(domain, history, ctx, sink, conclusion, input.runId());
+                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                             com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
+                    specialistRun(domain, history, ctx, sink, conclusion, input.runId());
+                }
             }
 
             persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion);
@@ -191,6 +203,13 @@ public class V2xCopilotAgent implements Agent {
             sink.emit(AgUiEvent.runError("INTERNAL_ERROR", "copilot", true,
                     "系统内部错误，请稍后重试"));
         } finally {
+            // 追踪落库（失败只告警）并清理上下文
+            try {
+                runtime.traceRecorder().flush(traceId, com.dst.v2xagent.observability.trace.TraceContext.spans());
+            } catch (Exception ignore) {
+                // ignore
+            }
+            com.dst.v2xagent.observability.trace.TraceContext.end();
             cancelFlags.remove(input.runId());
             runtime.audit().record(ctx, input, traceId,
                     routeTag == null ? null : "copilot:" + routeTag,
@@ -425,6 +444,9 @@ public class V2xCopilotAgent implements Agent {
                     routeTag == null ? null : "copilot:" + routeTag,
                     null, rowCount, conclusion.toString(),
                     conclusion.length() > 200 ? conclusion.substring(0, 200) : conclusion.toString());
+            // 记忆提取：任务摘要 / 用户偏好 / 异常模式沉淀（Memory 是线索不是事实）
+            runtime.memoryExtractor().extractAndRemember(ctx.tenantId(), ctx.userId(), input.question(),
+                    conclusion.toString(), routeTag == null ? "TASK" : "copilot:" + routeTag, java.util.List.of());
         } catch (Exception e) {
             log.warn("session persist failed (ignored): {}", e.getMessage());
         }
@@ -432,6 +454,19 @@ public class V2xCopilotAgent implements Agent {
 
     private void finishOk(AguiFluxSink sink, RunOrchestrator.RunInput input, String traceId,
                           List<String> followUps) {
+        // Agent Trace 帧：执行步骤可视化（前端步骤流渲染）
+        java.util.List<java.util.Map<String, Object>> steps = new java.util.ArrayList<>();
+        for (com.dst.v2xagent.observability.trace.TraceSpan s
+                : com.dst.v2xagent.observability.trace.TraceContext.spans()) {
+            java.util.Map<String, Object> step = new java.util.LinkedHashMap<>();
+            step.put("type", s.spanType());
+            step.put("name", s.name() == null ? "" : s.name());
+            step.put("duration_ms", s.durationMs());
+            step.put("status", s.status());
+            steps.add(step);
+        }
+        sink.emit(AgUiEvent.of("AGENT_TRACE", Map.of(
+                "trace_id", traceId, "steps", steps)));
         sink.emit(AgUiEvent.of("RUN_FINISHED", Map.of(
                 "runId", input.runId(), "traceId", traceId, "followUps", followUps)));
     }

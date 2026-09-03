@@ -1,9 +1,10 @@
 """管理后台 API 冒烟：capability 列表 / 试跑 / 上下线 / 反馈"""
 import json
+import os
 import urllib.request
 import http.cookiejar
 
-BASE = "http://localhost:8080"
+BASE = os.environ.get("V2X_BASE", "http://localhost:8080")
 
 def main():
     cj = http.cookiejar.CookieJar()

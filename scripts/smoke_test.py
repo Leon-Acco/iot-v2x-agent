@@ -1,10 +1,11 @@
 """端到端冒烟测试：登录 → 多个问题跑 /agui/run SSE 全链路 → 汇总事件序列（官方 AG-UI 契约）"""
 import json
 import uuid
+import os
 import urllib.request
 import http.cookiejar
 
-BASE = "http://localhost:8080"
+BASE = os.environ.get("V2X_BASE", "http://localhost:8080")
 
 CASES = [
     ("q-mileage-fleet", "各车队近7天里程对比"),

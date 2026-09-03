@@ -2,6 +2,7 @@ package com.dst.v2xagent.copilot;
 
 import com.dst.v2xagent.capability.RenderChartTool;
 import com.dst.v2xagent.llm.LlmProperties;
+import com.dst.v2xagent.memory.MemoryExtractor;
 import com.dst.v2xagent.memory.SessionStore;
 import com.dst.v2xagent.runtime.RunAuditRepository;
 import com.dst.v2xagent.runtime.spi.StreamingModelClient;
@@ -25,6 +26,8 @@ public class CopilotRuntime {
     private final SessionStore sessionStore;
     private final RunAuditRepository auditRepository;
     private final RenderChartTool renderChartTool;
+    private final MemoryExtractor memoryExtractor;
+    private final com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder;
 
     /** 显式构造器注入（双数据源必须 @Qualifier，不用 Lombok） */
     public CopilotRuntime(LlmProperties llmProperties,
@@ -33,7 +36,9 @@ public class CopilotRuntime {
                           @Qualifier("analyticsJdbcTemplate") JdbcTemplate analyticsJdbcTemplate,
                           SessionStore sessionStore,
                           RunAuditRepository auditRepository,
-                          RenderChartTool renderChartTool) {
+                          RenderChartTool renderChartTool,
+                          MemoryExtractor memoryExtractor,
+                          com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder) {
         this.llmProperties = llmProperties;
         this.structuredModelClient = structuredModelClient;
         this.streamingModelClient = streamingModelClient;
@@ -41,6 +46,8 @@ public class CopilotRuntime {
         this.sessionStore = sessionStore;
         this.auditRepository = auditRepository;
         this.renderChartTool = renderChartTool;
+        this.memoryExtractor = memoryExtractor;
+        this.traceRecorder = traceRecorder;
     }
 
     public LlmProperties llm() { return llmProperties; }
@@ -56,4 +63,8 @@ public class CopilotRuntime {
     public RunAuditRepository audit() { return auditRepository; }
 
     public RenderChartTool charts() { return renderChartTool; }
+
+    public MemoryExtractor memoryExtractor() { return memoryExtractor; }
+
+    public com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder() { return traceRecorder; }
 }
