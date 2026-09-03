@@ -158,6 +158,8 @@
     </dependencies>
 
     <build>
+        <!-- 固定 jar 产物名（不含版本号），部署脚本/systemd 无需随版本变更 -->
+        <finalName>v2x-agent-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

@@ -1,4 +1,4 @@
-id: alarm_count_by_type
+ id: alarm_count_by_type
 display: 按类型统计告警次数
 description: 统计指定时间范围内车辆告警次数，按告警类型分组
 aliases: [告警统计, 报警次数, 哪类告警最多, 告警分布, 告警占比]
