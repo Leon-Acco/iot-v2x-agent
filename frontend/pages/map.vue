@@ -199,9 +199,9 @@ const kpi = computed(() => {
 })
 
 const statusSegs = computed(() => [
-  { name: '运行', value: kpi.value.online, color: '#2DD4BF' },
-  { name: '停车', value: kpi.value.park, color: '#38BDF8' },
-  { name: '离线', value: kpi.value.lost, color: '#F5B544' }
+  { name: '运行', value: kpi.value.online, color: '#17A05E' },
+  { name: '停车', value: kpi.value.park, color: '#8AA294' },
+  { name: '离线', value: kpi.value.lost, color: '#E87A1E' }
 ])
 
 const trend = computed(() => Array.isArray(overview.value.alertTrend) ? overview.value.alertTrend : [])
@@ -308,7 +308,7 @@ usePolling(load, 30000)
 /* ===== 深色孪生设计令牌（页面局部生效） ===== */
 .twin {
   --panel: rgba(255, 255, 255, .74);
-  --line: rgba(14, 138, 138, .15);
+  --line: rgba(23, 160, 94, .15);
   display: flex; flex-direction: column; gap: 14px; min-height: calc(100vh - 140px);
 }
 
@@ -318,15 +318,15 @@ usePolling(load, 30000)
   position: relative; border-radius: 16px; overflow: hidden; min-height: 460px;
   border: 1px solid var(--line);
   background:
-    radial-gradient(900px 600px at 70% 20%, rgba(14, 138, 138, .07) 0%, transparent 65%),
-    radial-gradient(700px 500px at 20% 85%, rgba(43, 191, 175, .06) 0%, transparent 70%),
-    linear-gradient(165deg, #EDF6F3 0%, #E2EFEA 60%, #D9EAE4 100%);
+    radial-gradient(900px 600px at 70% 20%, rgba(23, 160, 94, .07) 0%, transparent 65%),
+    radial-gradient(700px 500px at 20% 85%, rgba(23, 160, 94, .06) 0%, transparent 70%),
+    linear-gradient(165deg, #F0F7F3 0%, #EAF3EE 60%, #E3EDE7 100%);
 }
 .stage::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
   background-image:
-    linear-gradient(rgba(14, 138, 138, .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(14, 138, 138, .05) 1px, transparent 1px);
+    linear-gradient(rgba(23, 160, 94, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 160, 94, .05) 1px, transparent 1px);
   background-size: 44px 44px;
 }
 .kpis { display: flex; flex-direction: column; gap: 14px; }
@@ -334,57 +334,57 @@ usePolling(load, 30000)
 /* ===== 搜索 ===== */
 .stage-search { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; z-index: 7; width: min(320px, 46%); }
 .stage-search input {
-  width: 100%; font: inherit; font-size: 12.5px; color: #12403E; outline: none;
-  background: rgba(255, 255, 255, .86); border: 1px solid rgba(14, 138, 138, .22);
+  width: 100%; font: inherit; font-size: 12.5px; color: #1A2B22; outline: none;
+  background: rgba(255, 255, 255, .86); border: 1px solid rgba(23, 160, 94, .22);
   border-radius: 10px; padding: 8px 14px; backdrop-filter: blur(8px);
 }
-.stage-search input::placeholder { color: #8AA6A2; }
-.stage-search input:focus { border-color: rgba(14, 138, 138, .55); }
+.stage-search input::placeholder { color: #8AA294; }
+.stage-search input:focus { border-color: rgba(23, 160, 94, .55); }
 .search-drop {
-  margin-top: 6px; background: rgba(255, 255, 255, .96); border: 1px solid rgba(14, 138, 138, .18);
+  margin-top: 6px; background: rgba(255, 255, 255, .96); border: 1px solid rgba(23, 160, 94, .18);
   border-radius: 10px; overflow: hidden; max-height: 260px; overflow-y: auto;
 }
 .search-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; font-size: 12px; }
-.search-item:hover { background: rgba(14, 138, 138, .08); }
-.search-item b { color: #12403E; font-variant-numeric: tabular-nums; }
-.search-item span { color: #5A7A76; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-item.none { color: #8AA6A2; cursor: default; }
+.search-item:hover { background: rgba(23, 160, 94, .08); }
+.search-item b { color: #1A2B22; font-variant-numeric: tabular-nums; }
+.search-item span { color: #5C7266; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-item.none { color: #8AA294; cursor: default; }
 
 /* ===== 主文案 ===== */
 .hero { position: absolute; left: 24px; bottom: 22px; z-index: 3; pointer-events: none; }
-.hero h1 { font-size: clamp(22px, 2vw, 32px); line-height: 1.28; letter-spacing: -.01em; font-weight: 800; color: #12403E; margin: 0; }
-.hero h1 .thin { font-weight: 400; color: #4A7672; }
-.hero p { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: #5A7A76; }
+.hero h1 { font-size: clamp(22px, 2vw, 32px); line-height: 1.28; letter-spacing: -.01em; font-weight: 800; color: #1A2B22; margin: 0; }
+.hero h1 .thin { font-weight: 400; color: #5C7266; }
+.hero p { margin: 10px 0 0; font-size: 12px; line-height: 1.8; color: #5C7266; }
 
 /* ===== 车辆详情卡 ===== */
 .veh-card {
   position: absolute; right: 14px; bottom: 14px; z-index: 7; width: 240px;
-  background: rgba(255, 255, 255, .9); border: 1px solid rgba(14, 138, 138, .28);
+  background: rgba(255, 255, 255, .9); border: 1px solid rgba(23, 160, 94, .28);
   border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(10px);
 }
-.veh-plate { font-size: 15px; font-weight: 700; color: #0E8A8A; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.veh-line { font-size: 11.5px; color: #4A7672; line-height: 1.75; }
+.veh-plate { font-size: 15px; font-weight: 700; color: #17A05E; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.veh-line { font-size: 11.5px; color: #5C7266; line-height: 1.75; }
 .veh-close {
-  position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #5A7A76;
+  position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #5C7266;
   font-size: 16px; cursor: pointer;
 }
-.veh-close:hover { color: #12403E; }
+.veh-close:hover { color: #1A2B22; }
 
 /* ===== 图表区 / 告警区 ===== */
-.charts { display: grid; grid-template-columns: 1fr 1.3fr 1fr 1fr; gap: 14px; }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .alerts-row { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; }
 .card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   padding: 14px 16px; backdrop-filter: blur(10px); min-width: 0;
 }
-.card h3 { font-size: 12.5px; font-weight: 600; color: #4A7672; letter-spacing: .02em; margin: 0 0 12px; }
-.h3-sub { font-size: 10.5px; color: #8AA6A2; font-weight: 400; margin-left: 6px; }
-.up { color: #0E8A8A; }
+.card h3 { font-size: 12.5px; font-weight: 600; color: #5C7266; letter-spacing: .02em; margin: 0 0 12px; }
+.h3-sub { font-size: 10.5px; color: #8AA294; font-weight: 400; margin-left: 6px; }
+.up { color: #17A05E; }
 .down { color: #F87171; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 1400px) {
-  .charts { grid-template-columns: 1fr 1fr; }
+  .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 1080px) {
   .band, .alerts-row { grid-template-columns: 1fr; }

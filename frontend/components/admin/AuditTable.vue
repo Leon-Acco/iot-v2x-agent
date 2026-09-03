@@ -12,6 +12,7 @@
       <span class="count">共 {{ filtered.length }} 条</span>
       <button class="btn btn-primary export-btn" @click="exportCsv">导出 CSV</button>
     </div>
+    <div class="table-scroll">
     <table class="audit-table">
       <thead>
         <tr>
@@ -32,6 +33,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
     <div v-if="!filtered.length" class="empty">暂无审计记录</div>
   </div>
 </template>
@@ -76,19 +78,21 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.audit-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.audit-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .status-filter {
   padding: 7px 10px; font-size: 12px; border: 1px solid #E5E5E5;
   border-radius: 8px; background: #F3F3F5; outline: none; color: var(--text-2);
 }
 .count { font-size: 12px; color: var(--text-3); }
 .export-btn { margin-left: auto; padding: 6px 14px; font-size: 12px; }
-.audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* min-width 地板 + 单元格 nowrap：窄屏保持列宽可读，由 .table-scroll 横滚而不是挤压换行 */
+.audit-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; }
 .audit-table th {
   text-align: left; padding: 8px 10px; color: var(--text-3); font-weight: 600;
   border-bottom: 1px solid #E5E5E5; white-space: nowrap;
 }
-.audit-table td { padding: 7px 10px; border-bottom: 1px solid #F3F4F6; }
+.audit-table td { padding: 7px 10px; border-bottom: 1px solid #F3F4F6; white-space: nowrap; }
 .audit-table tbody tr:hover { background: #F3F3F5; }
 .mono { font-family: "SF Mono", Consolas, monospace; font-size: 11px; color: var(--text-2); }
 .nowrap { white-space: nowrap; }

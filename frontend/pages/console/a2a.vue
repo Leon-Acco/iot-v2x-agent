@@ -156,7 +156,7 @@ onMounted(load)
 </script>
 
 <style scoped>
-.a2a-page { padding: 16px 18px; min-height: calc(100vh - 116px); }
+.a2a-page { padding: 16px 18px; min-height: calc(100vh - 116px); display: flex; flex-direction: column; }
 .page-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
 .tab-btn {
   border: none; background: transparent; padding: 7px 14px; border-radius: 8px;
@@ -168,7 +168,8 @@ onMounted(load)
   font-size: 10px; padding: 1px 6px; line-height: 1.4;
 }
 .create-btn { margin-left: auto; }
-.empty { text-align: center; color: var(--text-3); padding: 40px 0; font-size: 13px; }
+.tab-body { flex: 1; display: flex; flex-direction: column; }
+.empty { text-align: center; color: var(--text-3); padding: 40px 0; font-size: 13px; margin: auto; }
 .agent-card {
   border: 1px solid #F0F0F0; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
   background: #FFFFFF;
@@ -187,7 +188,7 @@ onMounted(load)
 }
 .approve-box input:focus { border-color: var(--primary); }
 .approve-actions { display: flex; gap: 8px; }
-.btn.reject { color: var(--danger); }
+.btn.reject { color: var(--danger); height: 36px; padding: 0 18px; font-size: 13px; }
 .btn.reject:hover { background: rgba(239,68,68,.08); color: var(--danger); }
 .toggle-cred { margin-top: 8px; padding: 4px 10px; font-size: 12px; }
 .form-field { display: block; margin-bottom: 12px; }

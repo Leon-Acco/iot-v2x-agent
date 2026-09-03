@@ -1,5 +1,5 @@
 <template>
-  <!-- teal 侧栏底部用户区 -->
+  <!-- v3a 侧栏底部用户区 -->
   <div class="user-area">
     <div class="avatar">{{ initial }}</div>
     <div class="info">
@@ -26,27 +26,32 @@ const fleetText = computed(() => {
 
 <style scoped>
 .user-area {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex; align-items: center; gap: 10px; margin: 0 12px;
+  padding: 12px 6px 0;
+  border-top: 1px solid var(--chrome-line);
 }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.15); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 13px;
+  display: grid; place-items: center; font-weight: 600; font-size: 13px;
+  background: rgba(23, 160, 94, .12); color: var(--green);
+  border: 1px solid rgba(23, 160, 94, .3);
 }
 .info { flex: 1; min-width: 0; }
 .name {
-  font-size: 13px; font-weight: 500; color: #fff;
+  font-size: 13px; font-weight: 600; color: var(--chrome-txt);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fleet { font-size: 11px; color: rgba(255, 255, 255, 0.6); }
 .logout {
-  border: none; background: rgba(255, 255, 255, 0.10); color: rgba(255, 255, 255, 0.75);
-  font-size: 14px; width: 30px; height: 30px; border-radius: 50%;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s;
+  width: 30px; height: 30px; border: 1px solid var(--chrome-line); border-radius: 8px;
+  background: none; color: var(--chrome-t3); cursor: pointer; font-size: 13px;
+  transition: color .15s, border-color .15s;
 }
-.logout:hover { background: rgba(220, 38, 38, 0.55); color: #fff; }
+.logout:hover { color: var(--orange); border-color: rgba(232, 122, 30, .4); }
+
+@media (max-width: 1020px) {
+  .name { display: none; }
+}
+@media (max-width: 760px) {
+  .user-area { display: none; }
+}
 </style>

@@ -1,5 +1,6 @@
 <template>
   <!-- P4 能力列表：搜索/状态筛选由父级处理，本组件只负责渲染与事件 -->
+  <div class="cap-scroll">
   <table class="cap-table">
     <thead>
       <tr>
@@ -32,6 +33,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </template>
 
 <script setup>
@@ -42,6 +44,7 @@ defineEmits(['edit', 'dryrun', 'status'])
 </script>
 
 <style scoped>
+.cap-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cap-table th {
   text-align: left; padding: 10px 12px; color: var(--text-3); font-size: 12px;
@@ -53,11 +56,12 @@ defineEmits(['edit', 'dryrun', 'status'])
 .cap-name { font-weight: 600; }
 .cap-aliases { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .kind-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #F3F4F6; color: var(--text-2); }
-.kind-tag.orchestration { background: #eaf6f1; color: #4F46E5; }
+.kind-tag.orchestration { background: rgba(23, 160, 94, .1); color: #0B7A3C; }
 .ops { white-space: nowrap; }
-.op { padding: 4px 10px; font-size: 12px; }
-.op.up { color: var(--success); }
-.op.up:hover { background: rgba(34,197,94,.1); color: var(--success); }
-.op.down { color: var(--danger); }
-.op.down:hover { background: rgba(239,68,68,.08); color: var(--danger); }
+.ops .op + .op { margin-left: 6px; }
+.op { height: 26px; padding: 0 10px; border-radius: 7px; font-size: 11.5px; background: var(--field); }
+.op.up { color: var(--success); background: rgba(23,160,94,.1); border-color: rgba(23,160,94,.3); }
+.op.up:hover { background: rgba(23,160,94,.16); color: var(--success); }
+.op.down { color: var(--danger); background: rgba(214,69,69,.1); border-color: rgba(214,69,69,.3); }
+.op.down:hover { background: rgba(214,69,69,.16); color: var(--danger); }
 </style>

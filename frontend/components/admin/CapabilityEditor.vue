@@ -172,7 +172,7 @@ defineExpose({ submit })
 .p-type { width: 110px; }
 .p-req { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
 .p-desc { flex: 1; min-width: 0; }
-.limits-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.limits-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 .sql-editor {
   width: 100%; font-family: "SF Mono", Consolas, monospace; font-size: 12px;
   padding: 10px; border: 1px solid #E5E5E5; border-radius: 8px;

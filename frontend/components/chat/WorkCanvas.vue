@@ -101,10 +101,10 @@ const chartOption = computed(() => {
 
 <style scoped>
 .work-canvas {
-  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  min-width: 0; display: flex; flex-direction: column;
   padding: 18px 22px; overflow-y: auto;
-  border-right: 1px solid var(--border-default, #e5e7eb);
-  background: var(--bg-page, #f7f9fb);
+  background: var(--panel);
+  border: 1px solid var(--line); border-radius: 16px;
 }
 .wc-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -119,7 +119,7 @@ const chartOption = computed(() => {
 .wc-empty-icon { font-size: 42px; opacity: .5; }
 .wc-empty-text { font-size: 13px; }
 .wc-body { display: flex; flex-direction: column; gap: 16px; }
-.wc-viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
+.wc-viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 14px; }
 .wc-card {
   background: #fff; border: 1px solid var(--border-default, #e5e7eb);
   border-radius: 12px; padding: 14px 16px;
@@ -132,12 +132,12 @@ const chartOption = computed(() => {
 
 <style scoped>
 .wc-trace { margin-bottom: 12px; padding: 10px 14px; background: rgba(255,255,255,.72); border-radius: 10px; }
-.wc-trace-title { font-size: 12px; font-weight: 600; color: #12403E; margin-bottom: 6px; }
+.wc-trace-title { font-size: 12px; font-weight: 600; color: #1A2B22; margin-bottom: 6px; }
 .wc-trace-steps { display: flex; flex-direction: column; gap: 4px; }
-.wc-trace-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #3D5A54; }
+.wc-trace-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5C7266; }
 .wc-trace-icon { width: 16px; text-align: center; }
-.wc-trace-icon.ok { color: #0E8A8A; }
-.wc-trace-icon.err { color: #D4564E; }
+.wc-trace-icon.ok { color: #17A05E; }
+.wc-trace-icon.err { color: #D64545; }
 .wc-trace-name { flex: 1; }
-.wc-trace-ms { color: #7A938D; font-variant-numeric: tabular-nums; }
+.wc-trace-ms { color: #8AA294; font-variant-numeric: tabular-nums; }
 </style>

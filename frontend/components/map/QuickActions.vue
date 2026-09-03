@@ -21,13 +21,13 @@ const emit = defineEmits(['export', 'refresh'])
 </script>
 
 <style scoped>
-.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qa-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .qa-btn {
   display: flex; align-items: center; gap: 9px; padding: 11px 13px;
-  font: inherit; font-size: 12.5px; color: #2A5A57; cursor: pointer;
-  background: rgba(255, 255, 255, .74); border: 1px solid rgba(56, 189, 248, .16);
+  font: inherit; font-size: 12.5px; color: #5C7266; cursor: pointer;
+  background: rgba(255, 255, 255, .74); border: 1px solid rgba(138, 162, 148, .16);
   border-radius: 11px; transition: border-color .2s, color .2s;
 }
-.qa-btn:hover { border-color: rgba(14, 138, 138, .5); color: #0E8A8A; }
-.qa-ico { font-size: 14px; color: #0E8A8A; width: 16px; text-align: center; }
+.qa-btn:hover { border-color: rgba(23, 160, 94, .5); color: #17A05E; }
+.qa-ico { font-size: 14px; color: #17A05E; width: 16px; text-align: center; }
 </style>

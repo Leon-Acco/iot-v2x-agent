@@ -20,8 +20,8 @@ defineEmits(['edit'])
 .user-msg-row { display: flex; justify-content: flex-end; margin: 20px 0 8px; }
 .user-bubble { position: relative; max-width: 78%; }
 .user-text {
-  background: #F3F3F5; color: var(--text-1);
-  border-radius: 14px 14px 4px 14px;
+  background: var(--green-deep); color: #FFFFFF;
+  border-radius: 14px 14px 3px 14px;
   padding: 10px 14px; font-size: 14px; line-height: 1.7;
   white-space: pre-wrap; word-break: break-word;
 }

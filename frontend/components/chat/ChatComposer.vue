@@ -60,8 +60,8 @@ defineExpose({ setText })
 }
 .pill-input::placeholder { color: var(--text-3); }
 .pill-input:focus {
-  border-color: var(--primary-600);
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.10);
+  border-color: var(--green-deep);
+  box-shadow: 0 0 0 3px rgba(23, 160, 94, 0.13);
 }
 .send-btn {
   width: 44px; height: 44px; flex-shrink: 0;

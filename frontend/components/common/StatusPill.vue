@@ -8,18 +8,19 @@ const props = defineProps({
   status: { type: String, default: '' },
   label: { type: String, default: '' }
 })
+// v3a sp 系配色：绿/橙/红/灰
 const MAP = {
-  online: ['#059669', '#ECFDF5', '已上线'],
-  staging: ['#D97706', '#FEF3C7', '预发'],
-  draft: ['#6B7280', '#F3F4F6', '草稿'],
-  deprecated: ['#6B7280', '#F3F4F6', '已下线'],
-  PENDING: ['#D97706', '#FEF3C7', '待审批'],
-  APPROVED: ['#059669', '#ECFDF5', '已批准'],
-  REJECTED: ['#DC2626', '#FEE2E2', '已驳回'],
-  REVOKED: ['#6B7280', '#F3F4F6', '已吊销'],
-  ACTIVE: ['#059669', '#ECFDF5', '有效']
+  online: ['#0B7A3C', 'rgba(23, 160, 94, .12)', '已上线'],
+  staging: ['#AD570E', 'rgba(232, 122, 30, .13)', '预发'],
+  draft: ['#8AA294', '#F5F8F6', '草稿'],
+  deprecated: ['#8AA294', '#F5F8F6', '已下线'],
+  PENDING: ['#AD570E', 'rgba(232, 122, 30, .13)', '待审批'],
+  APPROVED: ['#0B7A3C', 'rgba(23, 160, 94, .12)', '已批准'],
+  REJECTED: ['#D64545', 'rgba(214, 69, 69, .1)', '已驳回'],
+  REVOKED: ['#8AA294', '#F5F8F6', '已吊销'],
+  ACTIVE: ['#0B7A3C', 'rgba(23, 160, 94, .12)', '有效']
 }
-const entry = computed(() => MAP[props.status] || ['#6B7280', '#F3F4F6', props.status || '-'])
+const entry = computed(() => MAP[props.status] || ['#8AA294', '#F5F8F6', props.status || '-'])
 const color = computed(() => entry.value[0])
 const bg = computed(() => entry.value[1])
 const label = computed(() => props.label || entry.value[2])
