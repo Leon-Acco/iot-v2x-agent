@@ -11,8 +11,8 @@
       <template v-if="tab === 'board'">
         <div class="stat-row">
           <StatCard label="总运行" :value="ov.runs.total" icon="▦" />
-          <StatCard label="成功率" :value="successRate + '%'" accent="#22C55E" icon="✓" />
-          <StatCard label="平均延迟" :value="(ov.runs.avg_elapsed_ms || 0) + 'ms'" accent="#F59E0B" icon="⏱" />
+          <StatCard label="成功率" :value="successRate + '%'" accent="#17A05E" icon="✓" />
+          <StatCard label="平均延迟" :value="(ov.runs.avg_elapsed_ms || 0) + 'ms'" accent="#E87A1E" icon="⏱" />
           <StatCard label="好评率" :value="upRate" icon="👍" />
         </div>
         <div class="board-grid">
@@ -114,14 +114,14 @@ onMounted(async () => {
   font-size: 13px; color: var(--text-2); cursor: pointer;
 }
 .tab-btn.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
-.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.board-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.board-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .rank-item { margin-bottom: 10px; }
 .rank-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
 .mono { font-family: "SF Mono", Consolas, monospace; color: var(--text-2); }
 .rank-num { color: var(--text-3); font-family: var(--font-num); }
-.rank-track { height: 6px; border-radius: 3px; background: #F0F0F0; overflow: hidden; }
-.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #8fd3bc, #0f8a6a); }
+.rank-track { height: 6px; border-radius: 3px; background: var(--field); overflow: hidden; }
+.rank-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green-hover), var(--green-deep)); }
 .err-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; }
 .err-code { color: var(--danger); }
 .err-cnt { color: var(--text-3); }
@@ -136,4 +136,12 @@ onMounted(async () => {
 }
 .uc-table td { padding: 6px 10px; border-bottom: 1px solid #F3F4F6; }
 .tab-panel { padding: 14px 16px; }
+
+/* 移动端降列（对齐 v3a 预览）：≤1180 看板双卡竖排、≤880 KPI 卡 2 列，避免挤压换行 */
+@media (max-width: 1180px) {
+  .board-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 880px) {
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 </style>

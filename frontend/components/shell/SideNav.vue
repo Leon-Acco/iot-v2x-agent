@@ -1,18 +1,22 @@
 <template>
-  <!-- teal 侧栏导航：白色文字，active = 毛玻璃药丸 + 反向圆角缩进内容卡 -->
+  <!-- v3a 分组导航：内联 SVG currentColor 图标，active = 左侧绿条 + 绿tint底 -->
   <nav class="side-nav">
-    <div v-for="group in visibleGroups" :key="group.title" class="nav-group">
-      <div class="group-title">{{ group.title }}</div>
-      <NuxtLink
-        v-for="item in group.items"
-        :key="item.path"
-        :to="item.path"
-        class="nav-item"
-        :class="{ active: isActive(item) }"
-      >
-        <span class="nav-icon">{{ item.icon }}</span>
-        <span class="nav-label">{{ item.label }}</span>
-      </NuxtLink>
+    <div class="nav-scroll">
+      <template v-for="group in visibleGroups" :key="group.title">
+        <div class="group-title">{{ group.title }}</div>
+        <NuxtLink
+          v-for="item in group.items"
+          :key="item.path"
+          :to="item.path"
+          class="nav-item"
+          :class="{ on: isActive(item) }"
+        >
+          <span class="ni" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" v-html="ICONS[item.icon]"></svg>
+          </span>
+          <span class="nl">{{ item.label }}</span>
+        </NuxtLink>
+      </template>
     </div>
   </nav>
 </template>
@@ -23,34 +27,46 @@ const props = defineProps({
 })
 const route = useRoute()
 
+// 图标路径照抄 app-preview-h3-v3a-cockpit.html（currentColor 描边）
+const ICONS = {
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  warn: '<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4"/><path d="M12 17.2h.01"/>',
+  chart: '<path d="M5 20v-6"/><path d="M11 20V9"/><path d="M17 20v-9"/><path d="M3 20h18"/>',
+  lines: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h9"/>',
+  db: '<ellipse cx="12" cy="5.5" rx="7.5" ry="2.7"/><path d="M4.5 5.5v6.4c0 1.5 3.4 2.7 7.5 2.7s7.5-1.2 7.5-2.7V5.5"/><path d="M4.5 11.9v6.6c0 1.5 3.4 2.7 7.5 2.7s7.5-1.2 7.5-2.7v-6.6"/>',
+  gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M18.5 5.5l-1.9 1.9M7.4 16.6l-1.9 1.9"/>',
+  shield: '<path d="M12 3l7.5 3v5.4c0 4.6-3.2 8.1-7.5 9.6-4.3-1.5-7.5-5-7.5-9.6V6z"/><path d="M8.8 11.8l2.3 2.3 4.3-4.3"/>'
+}
+
 const navGroups = [
   {
     title: '基础',
     items: [
-      { path: '/map', label: '设备孪生地图', icon: '◉' },
-      { path: '/chat', label: '运营工作台', icon: '□' }
+      // 设备孪生地图暂缓开放，入口屏蔽（页面 /map 保留，恢复时取消注释即可）
+      // { path: '/map', label: '设备孪生地图', icon: '◉' },
+      { path: '/chat', label: '运营工作台', icon: 'grid' }
     ]
   },
   {
     title: '运营',
     items: [
-      { path: '/anomaly', label: '异常与任务卡', icon: '⚠' }
+      { path: '/anomaly', label: '异常与任务卡', icon: 'warn' }
     ]
   },
   {
     title: '数据',
     items: [
-      { path: '/console/stats', label: '数据统计', icon: '▦' },
-      { path: '/console/stats?tab=audit', label: '调用审计', icon: '≡' },
-      { path: '/console/memory', label: '记忆治理', icon: '◈' }
+      { path: '/console/stats', label: '数据统计', icon: 'chart' },
+      { path: '/console/stats?tab=audit', label: '调用审计', icon: 'lines' },
+      { path: '/console/memory', label: '记忆治理', icon: 'db' }
     ]
   },
   {
     title: '系统',
     adminOnly: true,
     items: [
-      { path: '/console/capabilities', label: 'Capability 管理', icon: '⚙' },
-      { path: '/console/a2a', label: 'A2A 授权审批', icon: '⚔' }
+      { path: '/console/capabilities', label: 'Capability 管理', icon: 'gear' },
+      { path: '/console/a2a', label: 'A2A 授权审批', icon: 'shield' }
     ]
   }
 ]
@@ -65,58 +81,47 @@ function isActive(item) {
 </script>
 
 <style scoped>
-.side-nav {
-  flex: 1; display: flex; flex-direction: column; gap: 18px;
-  overflow-y: auto;
-  /* 为反向圆角伪元素让出空间，防裁剪 */
-  padding: 14px 12px 14px 0;
-  margin: -14px -12px -14px 0;
-}
+.side-nav { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.nav-scroll { flex: 1; overflow-y: auto; }
 .group-title {
-  font-size: 10.5px; font-weight: 600; letter-spacing: .14em;
-  color: rgba(255, 255, 255, 0.45);
-  padding: 0 12px 6px;
+  font-size: 10px; font-weight: 600; letter-spacing: .16em;
+  color: var(--chrome-t3); padding: 14px 18px 6px;
 }
 .nav-item {
-  display: flex; align-items: center;
-  height: 52px; padding: 0 16px;
-  border-radius: 14px; cursor: pointer;
-  color: rgba(255, 255, 255, 0.75);
-  transition: all .2s ease;
-  font-size: 13px;
+  display: flex; align-items: center; height: 40px; padding: 0 18px;
+  color: var(--chrome-t2); text-decoration: none; font-size: 13px;
+  border-left: 2px solid transparent;
 }
-.nav-item:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
-.nav-item.active {
-  position: relative;
-  background: var(--glass);
-  color: var(--primary-deep);
-  border-radius: 14px 0 0 14px;
-  margin-right: -12px;
-  padding-right: 28px;
-  font-weight: 500;
+.nav-item:hover { color: var(--chrome-txt); background: rgba(23, 160, 94, .06); }
+.nav-item.on {
+  color: var(--green); background: rgba(23, 160, 94, .1);
+  border-left-color: var(--green); font-weight: 600;
 }
-/* 内凹弧形缺口：与内容卡同色方块 + 径向 mask 挖出四分之一圆 */
-.nav-item.active::before,
-.nav-item.active::after {
-  content: ''; position: absolute; right: 0;
-  width: 14px; height: 14px;
-  background: var(--glass);
-  pointer-events: none;
+.nav-item .ni {
+  width: 18px; height: 18px; margin-right: 10px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.nav-item.active::before {
-  top: -14px;
-  -webkit-mask: radial-gradient(circle 14px at 0 0, transparent 14px, #000 15px);
-          mask: radial-gradient(circle 14px at 0 0, transparent 14px, #000 15px);
+.nav-item .ni svg { width: 16px; height: 16px; display: block; }
+.nav-item .nl { letter-spacing: .02em; }
+
+@media (max-width: 1020px) {
+  .group-title { display: none; }
+  .nav-item {
+    justify-content: center; padding: 0; height: 44px;
+    border-left: 0; border-right: 2px solid transparent;
+  }
+  .nav-item.on { border-right-color: var(--green); }
+  .nav-item .ni { margin: 0; }
 }
-.nav-item.active::after {
-  bottom: -14px;
-  -webkit-mask: radial-gradient(circle 14px at 0 100%, transparent 14px, #000 15px);
-          mask: radial-gradient(circle 14px at 0 100%, transparent 14px, #000 15px);
+@media (max-width: 760px) {
+  .side-nav, .nav-scroll { display: contents; }
+  .nav-item {
+    flex: 0 0 auto; height: 46px; padding: 0 12px;
+    border: 0; border-radius: 10px; font-size: 12px; gap: 6px;
+    display: inline-flex; align-items: center;
+  }
+  .nav-item .ni { margin: 0; }
+  .nav-item .nl { display: inline; }
+  .nav-item.on { background: rgba(23, 160, 94, .14); }
 }
-.nav-icon {
-  width: 20px; margin-right: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; color: inherit;
-}
-.nav-label { flex: 1; letter-spacing: .02em; }
 </style>

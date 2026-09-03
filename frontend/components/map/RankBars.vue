@@ -33,13 +33,13 @@ function pick(it) { if (props.clickable) emit('pick', it) }
 <style scoped>
 .rank-list { display: flex; flex-direction: column; gap: 9px; }
 .rank-item.clickable { cursor: pointer; }
-.rank-item.clickable:hover .rank-name { color: #0E8A8A; }
-.rank-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: #4A7672; }
-.rank-head b { margin-left: auto; color: #12403E; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
-.rank-sub { font-size: 10.5px; color: #5A7A76; }
-.rank-track { height: 5px; border-radius: 3px; background: rgba(56, 189, 248, .08); overflow: hidden; margin-top: 4px; }
+.rank-item.clickable:hover .rank-name { color: #17A05E; }
+.rank-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: #5C7266; }
+.rank-head b { margin-left: auto; color: #1A2B22; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+.rank-sub { font-size: 10.5px; color: #5C7266; }
+.rank-track { height: 5px; border-radius: 3px; background: rgba(138, 162, 148, .08); overflow: hidden; margin-top: 4px; }
 .rank-bar { height: 100%; border-radius: 3px; }
-.bar-teal { background: linear-gradient(90deg, #7FCABB, #0E8A8A); }
-.bar-cyan { background: linear-gradient(90deg, #0b6e55, #2BBFAF); }
-.rank-empty { font-size: 12px; color: #5A7A76; padding: 8px 0; }
+.bar-teal { background: linear-gradient(90deg, #8CCFAA, #17A05E); }
+.bar-cyan { background: linear-gradient(90deg, #0B7A3C, #1CB56C); }
+.rank-empty { font-size: 12px; color: #5C7266; padding: 8px 0; }
 </style>

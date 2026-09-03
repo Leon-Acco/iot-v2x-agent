@@ -1,44 +1,55 @@
 <template>
-  <!-- 布局壳：teal 渐变外框 + 毛玻璃内容卡（Office_Agent 复刻） -->
-  <div class="frame">
-    <div class="app-shell" :class="'theme-' + theme">
-      <aside class="sidebar">
-        <div class="sidebar-brand">
-          <span class="sidebar-logo">V2X</span>
-          <div class="brand-text">
-            <h3>车联网Agent</h3>
-            <p>设备运营 Agent</p>
-          </div>
-        </div>
-        <SideNav :is-admin="isAdmin" />
-        <div class="sidebar-footer">
-          <UserCard :user="user" @logout="logout" />
-        </div>
-      </aside>
-      <div class="main-content">
-        <header class="page-header">
-          <h1>{{ title }}</h1>
-          <div class="header-right">
-            <span class="clock">{{ clock }}</span>
-            <span class="status-dot"></span>
-            <span class="status-text">在线</span>
-          </div>
-        </header>
-        <main class="page-body">
-          <slot />
-        </main>
+  <!-- 布局壳：v3a「分组驾驶舱」——浅色分组左导航 + 浅色纸面工作区 -->
+  <div class="app">
+    <aside class="appnav" aria-label="应用导航">
+      <div class="brandrow">
+        <img class="mark" src="/images/dstLogo.png" alt="DST" />
+        <b>车联网<i>Agent</i></b>
       </div>
-    </div>
+      <SideNav :is-admin="isAdmin" />
+      <button
+        class="nav-fold"
+        type="button"
+        :aria-expanded="navFolded ? 'true' : 'false'"
+        title="折叠导航"
+        @click="toggleNav"
+      >⟨</button>
+      <UserCard :user="user" @logout="logout" />
+    </aside>
+    <main>
+      <header class="topbar">
+        <img class="m-mark" src="/images/dstLogo.png" alt="DST" />
+        <h2>{{ title }}</h2>
+        <slot name="topbar" />
+        <div class="topbar-right">
+          <span class="clock">{{ clock }}</span>
+          <span class="status-dot"></span>
+          <span class="status-text">在线</span>
+          <span class="m-user">
+            <span class="m-name">{{ user?.username || '' }}</span>
+            <button class="m-logout" type="button" @click="logout">退出</button>
+          </span>
+        </div>
+      </header>
+      <div class="page">
+        <slot />
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup>
 const props = defineProps({
   title: { type: String, default: '' },
-  // 外框主题：blue 默认蓝渐变；green 设备孪生地图绿色渐变（DST 视觉稿）
+  // 兼容旧调用（map 页传 theme="green"）；v3a 单一浅色皮肤，不再区分主题
   theme: { type: String, default: 'blue' }
 })
 const { user, isAdmin, logout } = useAuth()
+
+// iOS 安全区：env(safe-area-inset-*) 需要 viewport-fit=cover（nuxt.config 不动，组件级补充）
+useHead({
+  meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1.0, viewport-fit=cover' }]
+})
 
 const clock = ref('')
 let timer = null
@@ -50,78 +61,88 @@ onMounted(() => {
   timer = setInterval(tick, 1000)
 })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+
+const navFolded = ref(false)
+function toggleNav() {
+  navFolded.value = !navFolded.value
+  document.body.classList.toggle('folded-nav', navFolded.value)
+}
 </script>
 
 <style scoped>
-.frame { height: 100vh; background: var(--bg-page); }
-.app-shell {
-  position: relative;
-  height: calc(100vh - 16px);
-  margin: 8px;
-  padding: 10px 10px 10px 0;
-  background: linear-gradient(180deg, rgba(15, 138, 106, 0.86), rgba(11, 110, 85, 0.92));
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 22px;
-  overflow: hidden;
-  box-shadow: 0 18px 48px rgba(11, 110, 85, 0.22), 0 4px 12px rgba(11, 110, 85, 0.10);
-  display: flex;
+.app { display: flex; min-height: 100vh; }
+.appnav {
+  position: sticky; top: 0; height: 100vh; width: var(--sider-width); flex: 0 0 auto; z-index: 50;
+  display: flex; flex-direction: column; padding: 18px 0 14px;
+  background: var(--sider-bg);
+  border-right: 1px solid var(--chrome-line);
 }
-/* 绿色主题：设备孪生地图页（DST 视觉稿色系） */
-.app-shell.theme-green {
-  background: linear-gradient(180deg, rgba(15, 138, 106, 0.88), rgba(11, 110, 85, 0.94));
-  box-shadow: 0 18px 48px rgba(11, 110, 85, 0.22), 0 4px 12px rgba(11, 110, 85, 0.10);
+.brandrow { display: flex; align-items: center; gap: 0; padding: 0 18px 16px; }
+.brandrow .mark {
+  height: 16px; width: auto; display: block;
+  background: #FFFFFF; border-radius: 4px; padding: 2px 4px;
 }
-/* 深色孪生主题：设备孪生地图驾驶仓 */
-.frame:has(.app-shell.theme-twin) { background: #060C1C; }
-.app-shell.theme-twin {
-  background: linear-gradient(180deg, #0B1730 0%, #060C1C 100%);
-  border-color: rgba(56, 189, 248, 0.18);
-  box-shadow: 0 18px 48px rgba(4, 10, 26, 0.55), 0 4px 12px rgba(4, 10, 26, 0.35);
+.brandrow b { font-size: 14px; font-weight: 900; color: var(--chrome-txt); white-space: nowrap; }
+.brandrow b i { font-style: normal; color: var(--green); }
+.nav-fold {
+  display: none; margin: 10px auto 15px; width: 40px; height: 26px; border-radius: 8px;
+  border: 1px solid var(--chrome-line); background: none; color: var(--chrome-t3);
+  font: inherit; font-size: 12px; cursor: pointer;
 }
-.app-shell.theme-twin .main-content {
-  background: #081120;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+.nav-fold:hover { color: var(--green); border-color: rgba(23, 160, 94, .5); }
+
+main { flex: 1; min-width: 0; }
+.topbar {
+  display: flex; align-items: center; gap: 14px;
+  height: var(--topbar-h); padding: 0 clamp(14px, 2.4vw, 30px);
+  border-bottom: 1px solid var(--line);
 }
-.app-shell.theme-twin .page-header h1 { color: #E6F1FF; }
-.app-shell.theme-twin .header-right { color: #5A7194; }
-.sidebar {
-  width: var(--sider-width); min-width: var(--sider-width);
-  height: 100%; flex-shrink: 0;
-  display: flex; flex-direction: column;
-  padding: 20px 12px 20px 26px;
+.topbar h2 {
+  margin: 0; font-size: 19px; font-weight: 900;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.sidebar-brand {
-  margin-bottom: 32px; padding: 0 8px;
-  display: flex; align-items: center; gap: 10px;
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.clock { font-family: var(--f-mono); font-size: 12px; color: var(--t2); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
+.status-text { font-size: 12px; color: var(--t2); }
+/* 移动端顶栏 logo + 账号/退出（默认隐藏，≤760 展开；底部标签栏空间不足不放这里） */
+.m-mark, .m-user { display: none; }
+.page { padding: 12px clamp(14px, 2.4vw, 30px) var(--page-pad-b); }
+
+@media (min-width: 761px) {
+  .nav-fold { display: block; }
 }
-.sidebar-logo {
-  width: 40px; height: 40px; border-radius: 14px;
-  background: rgba(255, 255, 255, 0.15);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 13px; font-weight: 700;
-  font-family: var(--font-num); letter-spacing: .5px;
+@media (max-width: 1020px) {
+  .appnav { width: 64px; padding: 14px 0 12px; }
+  .brandrow { justify-content: center; padding: 0 0 12px; }
+  .brandrow b { display: none; }
 }
-.brand-text h3 { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.2; margin: 0; }
-.brand-text p { font-size: 11px; color: rgba(255, 255, 255, 0.6); margin: 2px 0 0; }
-.sidebar-footer { margin-top: auto; }
-.main-content {
-  flex: 1; min-width: 0; height: 100%;
-  overflow-y: auto;
-  background: var(--glass);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-radius: 20px;
-  display: flex; flex-direction: column;
+@media (max-width: 760px) {
+  .app { display: block; }
+  .appnav {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: auto; width: 100%;
+    flex-direction: row; align-items: center; gap: 2px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-right: 0; border-top: 1px solid var(--chrome-line);
+    overflow-x: auto; justify-content: flex-start;
+  }
+  .brandrow, .nav-fold { display: none; }
+  main { padding-bottom: 74px; }
+  .page { padding: 10px 12px 28px; }
+  .topbar { height: auto; min-height: var(--topbar-h); padding-top: 14px; padding-bottom: 10px; }
+  .clock, .status-text { display: none; }
+  .topbar h2 { font-size: 16px; }
+  .m-mark { display: block; height: 16px; width: auto; flex: 0 0 auto; background: #FFFFFF; border-radius: 4px; padding: 2px 4px; }
+  .m-user { display: inline-flex; align-items: center; gap: 8px; }
+  .m-name {
+    font-size: 12px; color: var(--t2); max-width: 72px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .m-logout {
+    height: 28px; padding: 0 10px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: none; color: var(--t3);
+    font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .m-logout:hover { color: var(--warn-ink); border-color: rgba(232, 122, 30, .4); }
 }
-.page-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 24px 32px 12px;
-  flex-shrink: 0;
-}
-.page-header h1 { font-size: 24px; font-weight: 500; color: var(--text-1); margin: 0; }
-.header-right { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 12px; }
-.clock { font-family: var(--font-num); }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
-.page-body { flex: 1; overflow: auto; padding: 8px 32px 24px; min-height: 0; }
 </style>

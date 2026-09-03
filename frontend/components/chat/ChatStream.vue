@@ -49,7 +49,7 @@ onUpdated(() => {
 
 <style scoped>
 .chat-stream { flex: 1; overflow-y: auto; min-height: 0; }
-.chat-column { max-width: 768px; margin: 0 auto; padding: 24px 16px 16px; }
+.chat-column { max-width: 98%; margin: 0 auto; padding: 24px 16px 16px; }
 .follow-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 16px; }
 .chip {
   border: 1px solid var(--border-default); background: #fff;

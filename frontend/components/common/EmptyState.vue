@@ -31,7 +31,7 @@ defineEmits(['pick'])
   background: var(--primary); color: #fff;
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 24px;
-  box-shadow: 0 8px 20px rgba(15, 138, 106, 0.28);
+  box-shadow: 0 8px 20px rgba(23, 160, 94, 0.28);
 }
 .frontdesk-empty h3 { font-size: 18px; font-weight: 500; color: var(--text-1); margin: 0; }
 .frontdesk-empty p { font-size: 14px; color: var(--text-2); margin: 6px 0 0; }

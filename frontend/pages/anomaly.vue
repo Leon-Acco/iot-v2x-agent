@@ -30,7 +30,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.anomaly-page { display: flex; gap: 12px; min-height: calc(100vh - 116px); }
-.left-col { width: 360px; flex-shrink: 0; }
-.right-col { flex: 1; min-width: 0; }
+.anomaly-page { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 12px; min-height: calc(100vh - 116px); }
+.left-col, .right-col { min-width: 0; }
+@media (max-width: 880px) {
+  .anomaly-page { grid-template-columns: 1fr; }
+}
 </style>

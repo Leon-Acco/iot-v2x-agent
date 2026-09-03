@@ -26,10 +26,10 @@ onMounted(async () => {
     modes: { default: ['drag-canvas', 'zoom-canvas', 'drag-node'] },
     defaultNode: {
       size: 30,
-      style: { fill: '#2563EB', stroke: '#1D4ED8', lineWidth: 1.5 },
-      labelCfg: { position: 'bottom', style: { fill: '#171717', fontSize: 11 } }
+      style: { fill: '#17A05E', stroke: '#0B7A3C', lineWidth: 1.5 },
+      labelCfg: { position: 'bottom', style: { fill: '#1A2B22', fontSize: 11 } }
     },
-    defaultEdge: { style: { stroke: '#A1A1A1', lineWidth: 1.2, endArrow: true } }
+    defaultEdge: { style: { stroke: '#8AA294', lineWidth: 1.2, endArrow: true } }
   })
   graph.data({ nodes, edges })
   graph.render()

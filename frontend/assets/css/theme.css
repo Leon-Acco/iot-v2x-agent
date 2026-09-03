@@ -1,47 +1,61 @@
-/* ===== 设计令牌：Soft SaaS 药丸风，蓝色调 ===== */
+/* ===== 设计令牌：v3a「分组驾驶舱」骨架 · H3 浅色皮肤 =====
+   新令牌为权威（照抄 app-preview-h3-v3a-cockpit.html :root）；
+   旧「Soft SaaS」令牌保留为别名桥，组件 scoped 样式零改动换肤。 */
 :root {
-  --primary: #0f8a6a;
-  --primary-deep: #0b6e55;
-  --primary-600: #3fb48d;
-  --primary-light: #eaf6f1;
-  --primary-soft: #d3efe4;
+  /* 浅色骨架（chrome） */
+  --chrome: #FFFFFF; --chrome-2: #F2F7F4;
+  --chrome-line: rgba(13, 64, 38, .12);
+  --chrome-txt: #1A2B22; --chrome-t2: #5C7266; --chrome-t3: #8AA294;
+  /* 浅色内容纸面（paper） */
+  --paper: #F7FAF8; --panel: #FFFFFF; --field: #F5F8F6;
+  --ink: #1A2B22; --t2: #5C7266; --t3: #8AA294;
+  --line: rgba(13, 64, 38, .12); --line-strong: rgba(13, 64, 38, .22);
+  /* 品牌 */
+  --green: #17A05E; --green-deep: #0B7A3C; --green-ink: #0B7A3C;
+  --green-hover: #1CB56C; --green-wash: rgba(23, 160, 94, .10);
+  --orange: #E87A1E; --red: #D64545; --warn-ink: #AD570E;
+  --shadow: 0 10px 28px rgba(26, 43, 34, .07);
+  --f-ui: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --f-mono: Consolas, "SF Mono", "JetBrains Mono", monospace;
+  /* 布局变量（AppShell 顶栏与 /chat 高度计算共用） */
+  --topbar-h: 60px; --topbar-gap: 16px; --page-pad-b: 40px;
 
-  --text-1: #0F1B2D;
-  --text-2: #475569;
-  --text-3: #94A3B8;
-
-  --bg-page: #f4f8f6;
-  --bg-solid: #f4f8f6;
-  --bg-input: #F3F4F6;
-  --bg-hover: #EBF1FA;
-  --bg-dark: #0F1B2D;
-  --glass: rgba(244, 247, 252, 0.88);
-
-  --card-bg: #FFFFFF;
-  --card-bg-solid: #FFFFFF;
+  /* 旧令牌别名桥 */
+  --primary: var(--green);
+  --primary-deep: var(--green-deep);
+  --primary-600: var(--green-hover);
+  --primary-light: rgba(23, 160, 94, .10);
+  --primary-soft: rgba(23, 160, 94, .14);
+  --text-1: var(--ink);
+  --text-2: var(--t2);
+  --text-3: var(--t3);
+  --bg-page: var(--paper);
+  --bg-solid: var(--paper);
+  --bg-input: var(--field);
+  --bg-hover: rgba(23, 160, 94, .06);
+  --bg-dark: #1A2B22;
+  --glass: rgba(247, 250, 248, .92);
+  --card-bg: var(--panel);
+  --card-bg-solid: var(--panel);
   --card-radius: 16px;
-  --card-shadow: 0 8px 24px rgba(15, 138, 106, 0.06), 0 2px 6px rgba(23, 23, 23, 0.03);
-  --card-shadow-hover: 0 12px 32px rgba(15, 138, 106, 0.10), 0 4px 10px rgba(23, 23, 23, 0.05);
-  --card-border: none;
-  --shadow-modal: 0 20px 60px rgba(17, 24, 39, 0.15);
-
-  --border-default: #DCE6F5;
-  --border-light: #EBF1FA;
-  --border-strong: #B9CDE8;
-
-  --success: #059669;
-  --success-bg: #ECFDF5;
-  --warning: #D97706;
-  --warning-bg: #FEF3C7;
-  --danger: #DC2626;
-  --danger-bg: #FEE2E2;
-  --info: #0EA5E9;
-  --info-bg: #F0F9FF;
-
-  --sider-width: 256px;
-  --sider-bg: transparent;
-
-  --font-num: "Inter", "DIN Alternate", "Bahnschrift", "Segoe UI", sans-serif;
+  --card-shadow: var(--shadow);
+  --card-shadow-hover: 0 14px 36px rgba(26, 43, 34, .11);
+  --card-border: 1px solid var(--line);
+  --shadow-modal: 0 24px 60px rgba(13, 64, 38, .16);
+  --border-default: var(--line);
+  --border-light: rgba(13, 64, 38, .08);
+  --border-strong: var(--line-strong);
+  --success: var(--green-ink);
+  --success-bg: rgba(23, 160, 94, .12);
+  --warning: var(--warn-ink);
+  --warning-bg: rgba(232, 122, 30, .13);
+  --danger: var(--red);
+  --danger-bg: rgba(214, 69, 69, .10);
+  --info: var(--green);
+  --info-bg: rgba(23, 160, 94, .08);
+  --sider-width: 208px;
+  --sider-bg: linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(243, 248, 245, .96));
+  --font-num: var(--f-mono);
   --font-display: Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", serif;
   --radius-sm: 8px;
   --radius-lg: 16px;
@@ -49,45 +63,84 @@
 
 * { box-sizing: border-box; }
 
+html { overflow-x: hidden; overflow-x: clip; }
 html, body {
   margin: 0; padding: 0; height: 100%;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-  color: var(--text-1);
-  background: var(--bg-page);
-  font-size: 14px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--f-ui); color: var(--ink);
+  font-size: 13px;
+  background: linear-gradient(160deg, #F7FAF8, #EDF3EF);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
-
 #__nuxt { height: 100%; }
+
+:focus-visible { outline: 2px solid var(--green-deep); outline-offset: 2px; }
+button, a { touch-action: manipulation; }
 
 a { color: var(--primary); text-decoration: none; }
 
 button { font-family: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
+/* 面板卡（v3a .panel：白底 + 描边 + r16 + 阴影） */
 .panel-card {
-  background: var(--card-bg);
-  border: var(--card-border);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: #C7D8F0; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+::-webkit-scrollbar-thumb { background: rgba(13, 64, 38, .18); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(13, 64, 38, .32); }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* 按钮（v3a .btn / .btn-pri：矩形描边 / 绿底主按钮） */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 18px; border-radius: 999px;
-  border: 1px solid var(--border-default); cursor: pointer;
-  font-size: 13px; font-weight: 500;
-  transition: background .15s ease, border-color .15s ease, color .15s ease;
-  background: #FFFFFF; color: var(--text-1);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 14px; border-radius: 9px;
+  border: 1px solid var(--line-strong); background: #FFFFFF; color: var(--t2);
+  font-size: 12.5px; font-weight: 500; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
-.btn:hover { background: var(--primary-light); border-color: var(--primary-600); color: var(--primary); }
-.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-.btn-primary:hover { background: var(--primary-deep); border-color: var(--primary-deep); color: #fff; }
+.btn:hover { color: var(--ink); border-color: var(--green-deep); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary {
+  height: 36px; padding: 0 18px; border: 0; border-radius: 10px;
+  background: var(--green); color: #FFFFFF; font-weight: 800; font-size: 13px;
+  box-shadow: 0 6px 16px rgba(23, 160, 94, .28);
+}
+.btn-primary:hover { background: var(--green-hover); color: #FFFFFF; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== v3a 全局布局段：折叠态（body 类跨组件，放全局以压过组件 scoped 样式） ===== */
+/* 左导航折叠（≥761px 由按钮触发；≤1020 由媒体查询自动生效，见 AppShell/SideNav） */
+@media (min-width: 761px) {
+  body.folded-nav .appnav { width: 64px; padding: 14px 0 12px; }
+  body.folded-nav .brandrow { justify-content: center; padding: 0 0 12px; }
+  body.folded-nav .brandrow b,
+  body.folded-nav .group-title,
+  body.folded-nav .nav-item .nl,
+  body.folded-nav .user-area .name { display: none; }
+  body.folded-nav .nav-item { justify-content: center; padding: 0; height: 44px; border-left: 0; border-right: 2px solid transparent; }
+  body.folded-nav .nav-item.on { border-right-color: var(--green); }
+  body.folded-nav .nav-item .ni { margin: 0; }
+  body.folded-nav .user-area { justify-content: center; margin: 0 8px; }
+  body.folded-nav .nav-fold { transform: rotate(180deg); }
+}
+
+/* 历史会话折叠（/chat 工作台） */
+body.folded-sess .sessions { display: none; }
+body.folded-sess .sess-restore { display: inline-flex; }
+@media (min-width: 881px) {
+  body.folded-sess .workbench { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); }
+}
+
+/* ===== 移动端硬化 ===== */
+@media (max-width: 760px) {
+  /* 触控：≥16px 输入防 iOS 聚焦缩放 */
+  input, select, textarea { font-size: 16px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

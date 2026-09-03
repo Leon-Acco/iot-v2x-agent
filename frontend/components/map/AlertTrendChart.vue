@@ -23,23 +23,23 @@ const option = computed(() => {
     tooltip: { trigger: 'axis', textStyle: { fontSize: 11 } },
     xAxis: {
       type: 'category', data: labels, boundaryGap: false,
-      axisLabel: { fontSize: 10, color: '#5A7A76', interval: 5 },
-      axisLine: { lineStyle: { color: 'rgba(56,189,248,.18)' } }, axisTick: { show: false }
+      axisLabel: { fontSize: 10, color: '#5C7266', interval: 5 },
+      axisLine: { lineStyle: { color: 'rgba(138,162,148,.18)' } }, axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(56,189,248,.08)' } },
-      axisLabel: { fontSize: 10, color: '#5A7A76' }
+      splitLine: { lineStyle: { color: 'rgba(138,162,148,.08)' } },
+      axisLabel: { fontSize: 10, color: '#5C7266' }
     },
     series: [{
       type: 'line', data: data, smooth: true, symbol: 'none',
-      lineStyle: { color: '#0E8A8A', width: 1.8 },
+      lineStyle: { color: '#17A05E', width: 1.8 },
       areaStyle: {
         color: {
           type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: 'rgba(45,212,191,.32)' },
-            { offset: 1, color: 'rgba(45,212,191,0)' }
+            { offset: 0, color: 'rgba(23,160,94,.32)' },
+            { offset: 1, color: 'rgba(23,160,94,0)' }
           ]
         }
       }

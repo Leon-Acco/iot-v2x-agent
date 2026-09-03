@@ -23,11 +23,11 @@ onMounted(async () => {
     name: p.name || '', value: [p.lng, p.lat, p.value != null ? p.value : 1]
   }))
   setOption({
-    geo: { map: 'china', roam: true, itemStyle: { areaColor: '#EFF6FF', borderColor: '#BFDBFE' } },
+    geo: { map: 'china', roam: true, itemStyle: { areaColor: '#F0F7F3', borderColor: '#CFE3D8' } },
     series: [{
       type: 'scatter', coordinateSystem: 'geo', data,
       symbolSize: v => Math.min(8 + Math.sqrt(v[2] || 1) * 2, 26),
-      itemStyle: { color: '#2563EB', opacity: 0.75 }
+      itemStyle: { color: '#17A05E', opacity: 0.75 }
     }]
   })
   window.addEventListener('resize', resize)

@@ -3,7 +3,7 @@
   <div class="donut-wrap">
     <div class="donut-box">
       <svg width="92" height="92" viewBox="0 0 42 42" aria-hidden="true">
-        <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(56,189,248,.10)" stroke-width="6"/>
+        <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(138,162,148,.10)" stroke-width="6"/>
         <circle v-for="a in arcs" :key="a.name" cx="21" cy="21" r="15.9" fill="none"
           :stroke="a.color" stroke-width="6" stroke-linecap="round"
           :stroke-dasharray="a.len.toFixed(2) + ' 100'" :stroke-dashoffset="a.offset.toFixed(2)"/>
@@ -42,10 +42,10 @@ const arcs = computed(() => {
 .donut-center {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px;
 }
-.donut-center b { font-size: 17px; color: #12403E; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
-.donut-center span { font-size: 10px; color: #5A7A76; margin-top: 5px; }
+.donut-center b { font-size: 17px; color: #1A2B22; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.donut-center span { font-size: 10px; color: #5C7266; margin-top: 5px; }
 .legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-.legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4A7672; }
-.legend-row b { margin-left: auto; color: #12403E; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5C7266; }
+.legend-row b { margin-left: auto; color: #1A2B22; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
 .sw { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 </style>

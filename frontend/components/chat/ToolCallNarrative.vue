@@ -62,12 +62,12 @@ function pretty(obj) {
   padding: 3px 0; color: var(--text-2); cursor: pointer;
   font-family: "SF Mono", Consolas, monospace; font-size: 12px;
 }
-.tree-prefix { color: #D4D4D4; }
+.tree-prefix { color: var(--line-strong); }
 .tool-name { color: var(--text-1); font-weight: 600; }
 .tool-summary { color: var(--text-3); }
 .spinner {
   width: 11px; height: 11px; border-radius: 50%;
-  border: 2px solid #D4D4D4; border-top-color: var(--primary);
+  border: 2px solid var(--line-strong); border-top-color: var(--primary);
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -75,7 +75,7 @@ function pretty(obj) {
 .error-icon { color: var(--danger); font-weight: 700; }
 .tool-detail {
   width: 100%; margin: 4px 0 8px 22px; padding: 8px 10px;
-  background: #F5F5F5; border-radius: 8px; border: 1px solid #F0F0F0;
+  background: var(--field); border-radius: 8px; border: 1px solid var(--line);
 }
 .detail-label { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
 .tool-detail pre {

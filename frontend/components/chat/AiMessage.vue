@@ -109,7 +109,7 @@ function vote(rating) {
 .ai-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ai-avatar {
   width: 28px; height: 28px; border-radius: 50%;
-  background: var(--bg-dark); color: #fff; font-size: 12px; font-weight: 600;
+  background: rgba(23, 160, 94, .14); color: var(--green-deep); font-size: 12px; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .ai-name { font-size: 14px; font-weight: 600; color: var(--text-1); }

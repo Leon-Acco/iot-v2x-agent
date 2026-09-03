@@ -73,25 +73,25 @@ function hasLoc(a) {
 <style scoped>
 .alert-table { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .at-row {
-  display: grid; grid-template-columns: 64px 1.1fr 1.2fr 1.2fr 0.9fr 0.8fr 64px;
-  gap: 10px; align-items: center; padding: 8px 4px; font-size: 12px; color: #4A7672;
+  display: grid; grid-template-columns: 64px minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.8fr) 64px;
+  gap: 10px; align-items: center; padding: 8px 4px; font-size: 12px; color: #5C7266;
 }
-.at-head { color: #5A7A76; font-size: 11px; letter-spacing: .04em; border-bottom: 1px solid rgba(56, 189, 248, .12); }
+.at-head { color: #5C7266; font-size: 11px; letter-spacing: .04em; border-bottom: 1px solid rgba(138, 162, 148, .12); }
 .at-body { overflow-y: auto; min-height: 0; max-height: 220px; }
-.at-body .at-row { border-bottom: 1px solid rgba(56, 189, 248, .06); }
-.c-plate { color: #12403E; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.at-body .at-row { border-bottom: 1px solid rgba(138, 162, 148, .06); }
+.c-plate { color: #1A2B22; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-loc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c-time { font-family: var(--font-num); color: #5A7A76; }
+.c-time { font-family: var(--font-num); color: #5C7266; }
 .lv-pill { font-style: normal; font-size: 10.5px; border-radius: 999px; padding: 2px 9px; }
-.lv-pill.sev { background: rgba(248, 113, 113, .16); color: #DC4A3C; }
-.lv-pill.mid { background: rgba(245, 181, 68, .14); color: #C77F1A; }
-.lv-pill.low { background: rgba(90, 113, 148, .18); color: #4A7672; }
-.st-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #C77F1A; margin-right: 6px; }
-.st-dot.done { background: #0E8A8A; }
+.lv-pill.sev { background: rgba(248, 113, 113, .16); color: #D64545; }
+.lv-pill.mid { background: rgba(232, 122, 30, .14); color: #AD570E; }
+.lv-pill.low { background: rgba(138, 162, 148, .18); color: #5C7266; }
+.st-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #AD570E; margin-right: 6px; }
+.st-dot.done { background: #17A05E; }
 .loc-btn {
-  font: inherit; font-size: 11.5px; color: #0E8A8A; background: rgba(14, 138, 138, .12);
-  border: 1px solid rgba(14, 138, 138, .3); border-radius: 7px; padding: 3px 10px; cursor: pointer;
+  font: inherit; font-size: 11.5px; color: #17A05E; background: rgba(23, 160, 94, .12);
+  border: 1px solid rgba(23, 160, 94, .3); border-radius: 7px; padding: 3px 10px; cursor: pointer;
 }
-.loc-btn:disabled { color: #8AA6A2; background: none; border-color: rgba(56, 189, 248, .12); cursor: not-allowed; }
-.at-empty { padding: 18px 4px; font-size: 12px; color: #5A7A76; }
+.loc-btn:disabled { color: #8AA294; background: none; border-color: rgba(138, 162, 148, .12); cursor: not-allowed; }
+.at-empty { padding: 18px 4px; font-size: 12px; color: #5C7266; }
 </style>
