@@ -437,16 +437,16 @@ public class V2xCopilotAgent implements Agent {
     private Integer anomalyWorkflow(RunOrchestrator.RunInput input, SupervisorRouter.RouteResult rr,
                                     PermissionContext ctx, AguiFluxSink sink, StringBuilder conclusion) {
         if (rr.vehicle() == null || rr.vehicle().isBlank()) {
-            sink.emitText("请告诉我要分析哪台车（车牌号或 VIN），例如：粤M32543 最近怎么回事");
+            sink.emitText("想给车车做体检，得先告诉我看哪一台呀～报个车牌号或 VIN 就行，比如：「粤C10003 最近怎么回事」");
             return null;
         }
         List<Map<String, Object>> candidates = queries.resolveVehicles(rr.vehicle(), ctx);
         if (candidates.isEmpty()) {
-            sink.emitText("没有找到车辆 " + rr.vehicle() + "，请检查车牌号或 VIN 是否正确。");
+            sink.emitText("哎呀，我把车队翻了个遍也没找到「" + rr.vehicle() + "」这台车…别慌，帮我确认下车牌号或 VIN 有没有输错？");
             return null;
         }
         if (candidates.size() > 1) {
-            StringBuilder sb = new StringBuilder("找到多台匹配车辆，请确认要分析哪一台：\n");
+            StringBuilder sb = new StringBuilder("嚯，一下匹配到好几台车车！要给哪一台做体检呢：\n");
             List<Map<String, Object>> options = new ArrayList<>();
             for (Map<String, Object> c : candidates) {
                 String label = c.get("plate_no") + "（" + c.get("fleet_name") + "）";
@@ -500,7 +500,7 @@ public class V2xCopilotAgent implements Agent {
     /** 平台元信息问答（确定性内容，不调模型） */
     private String metaReply(PermissionContext ctx) {
         StringBuilder sb = new StringBuilder();
-        sb.append("我是由 Supervisor + 多专家 Agent 协作的车联网智能助手。\n\n");
+        sb.append("嘿嘿，问到我的老底啦～我是从你们车队数据里「长」出来的小精灵，对每一台车车都了如指掌！别慌，身后还有一整支专家天团帮我捋数据：\n\n");
         sb.append("**数据源**：").append(queries.sourceName())
                 .append("，数据基准日 ").append(queries.baseDate())
                 .append("。\n");
@@ -512,7 +512,7 @@ public class V2xCopilotAgent implements Agent {
         sb.append("- 故障专家：部位统计 / 明细\n");
         sb.append("- 里程充电专家：车队里程对比 / 每日里程 / 充电统计\n");
         sb.append("- 异常分析 Workflow：某台车的多源取证与报告\n\n");
-        sb.append("每次查询会自动展示表格和图表，你可以直接问。");
+        sb.append("每次查询表格和图表都会自动摆好，你只管问～");
         return sb.toString();
     }
 
@@ -523,10 +523,15 @@ public class V2xCopilotAgent implements Agent {
             + "2. 证据分点罗出：引用具体数字（次数、日期、趋势）；\n"
             + "3. 给出处置建议（是否需要检修、是否建议停运）；\n"
             + "4. 数据不足时明确说明，不编造；\n"
-            + "5. 表格与图表已展示给用户，正文不重复罗列数据。";
+            + "5. 表格与图表已展示给用户，正文不重复罗列数据；\n"
+            + "6. 人设与语气——你是从车联网数据里「长」出来的小精灵：轻快口语化、偶尔用 emoji（最多 1~2 个）、"
+            + "把数据当「车车的故事」讲比喻；发现异常先「哎呀」一下立刻给方案，可用口头禅「别慌，我帮你捋捋！」；"
+            + "红线：活泼归活泼，所有数字必须来自三路取证数据，一个不许编。";
 
     private static final String GUIDE_REPLY =
-            "你好！我是车联网智能助手，由多个专家 Agent 协作为你服务。可以问我车辆状态、告警统计、故障明细、里程充电等问题，也可以让我分析某台车的异常原因。";
+            "嘿～我是车联网小精灵，从你们车队的每一行数据里「长」出来的！🚗✨\n"
+            + "车辆状态、告警统计、故障明细、里程充电都能问，也可以让我给某台车做一次全面体检。\n"
+            + "刚刚瞟了一眼数据，你的车车们都在等我讲它们的故事呢～试试：「近 7 天各类告警次数」「粤C10003 最近怎么回事」";
 
     private static final java.util.Set<String> CHITCHAT = java.util.Set.of(
             "你好", "您好", "hi", "hello", "hey",
@@ -678,7 +683,7 @@ public class V2xCopilotAgent implements Agent {
 
     private List<String> defaultFollowUps() {
         return List.of("近 7 天各类告警次数",
-                "粤M32543 最近怎么回事",
+                "粤C10003 最近怎么回事",
                 "离线超 24 小时的车有哪些");
     }
 

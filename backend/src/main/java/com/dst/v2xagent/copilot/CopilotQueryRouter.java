@@ -26,9 +26,21 @@ public class CopilotQueryRouter {
         this.source = source;
     }
 
-    /** 当前生效数据源标识（给 meta 回答用） */
+    /** 当前生效数据源标识（给 meta 回答用，库名取自真实连接避免文案漂移） */
     public String sourceName() {
-        return isSim() ? "模拟库 dst_v2x_sim" : "真实生产库 Doris dst_v2x_db（114 表）";
+        if (isSim()) {
+            return "模拟库 dst_v2x_sim";
+        }
+        String url = real.analyticsUrl();
+        int slash = url.lastIndexOf('/');
+        int q = url.indexOf('?', slash);
+        String db = url.substring(slash + 1, q > 0 ? q : url.length());
+        return "Doris 分析库 " + db;
+    }
+
+    /** 排障用：底层 analytics JDBC 连接 URL */
+    public String analyticsUrl() {
+        return isSim() ? "sim" : real.analyticsUrl();
     }
 
     private boolean isSim() {

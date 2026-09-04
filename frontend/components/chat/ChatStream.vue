@@ -4,8 +4,8 @@
     <div class="chat-column">
       <EmptyState
         v-if="!messages.length"
-        title="你好，我是设备运营 Agent"
-        desc="可以问我在线率、告警、里程，或直接要求生成图表"
+        title="嘿，我是车联网小精灵 🚗✨"
+        desc="从你们车队的每一行数据里「长」出来的～告警、里程、故障、车车体检，尽管问！"
         :chips="sampleQuestions"
         @pick="$emit('ask', $event)"
       />

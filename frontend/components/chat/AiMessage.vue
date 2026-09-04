@@ -38,7 +38,9 @@
 
       <template v-if="answer">
         <div class="answer-label">结论</div>
-        <div class="ai-answer">{{ answer }}<span v-if="cancelled" class="cancelled-mark">（已手动停止生成）</span></div>
+        <!-- Markdown 渲染：**加粗**/列表/标题（流式期间实时重渲，delta 已 90ms 批量） -->
+        <div class="ai-answer md" v-html="answerHtml"></div>
+        <div v-if="cancelled" class="cancelled-mark">（已手动停止生成）</div>
       </template>
       <div v-else-if="cancelled" class="ai-answer cancelled-mark">（已手动停止生成）</div>
 
@@ -210,6 +212,14 @@ const clarifyOptions = computed(() => {
 })
 
 const copied = ref(false)
+
+// 结论 Markdown 渲染（**粗体**/有序无序列表/标题/代码；html:false 防 XSS）
+const { render: renderMd } = useMarkdown()
+const answerHtml = ref('')
+watch(answer, async v => {
+  answerHtml.value = v ? await renderMd(v) : ''
+}, { immediate: true })
+
 function copyAnswer() {
   if (!answer.value) return
   navigator.clipboard.writeText(answer.value).then(() => {
@@ -233,10 +243,13 @@ async function createTaskCard() {
     const rawArgs = last && last.args && typeof last.args === 'object' ? last.args : {}
     const params = {}
     Object.keys(rawArgs).filter(k => !k.startsWith('_') && !k.startsWith('acl_')).forEach(k => { params[k] = rawArgs[k] })
+    // capabilityId 传工具中文名（后端 TaskCardService 按中文名映射 capability 目录；
+    // copilot 内部 id 如 real_alarm_count 与 capability id 不同体系，直传会 404）
+    const toolName = last && last.name ? String(last.name) : ''
     const { create } = useTaskCards()
     const created = await create({
       title: props.question || res.capabilityId || '任务卡',
-      capabilityId: res.capabilityId || (last && last.id) || '',
+      capabilityId: toolName || res.capabilityId || '',
       params,
       conclusion: props.stream.answer.value || '',
       runId: props.stream.runId.value || '',
@@ -324,6 +337,26 @@ async function createTaskCard() {
 .ai-answer {
   font-size: 14px; line-height: 1.9; color: var(--text-1);
   white-space: pre-wrap; word-break: break-word;
+}
+/* Markdown 结论排版：段落/加粗/列表/代码（对齐 Office_Agent 克制风） */
+.ai-answer.md { white-space: normal; }
+.ai-answer.md :deep(p) { margin: 0 0 10px; }
+.ai-answer.md :deep(p:last-child) { margin-bottom: 0; }
+.ai-answer.md :deep(strong) { font-weight: 600; color: var(--text-1); }
+.ai-answer.md :deep(ol), .ai-answer.md :deep(ul) { margin: 4px 0 10px; padding-left: 22px; }
+.ai-answer.md :deep(li) { margin: 3px 0; }
+.ai-answer.md :deep(h1), .ai-answer.md :deep(h2), .ai-answer.md :deep(h3) {
+  font-size: 14.5px; font-weight: 600; margin: 12px 0 6px;
+}
+.ai-answer.md :deep(code) {
+  font-family: var(--f-mono, "SF Mono", Consolas, monospace); font-size: 12.5px;
+  background: var(--bg-input, #f3f4f6); border-radius: 4px; padding: 1px 5px;
+}
+.ai-answer.md :deep(a) { color: var(--primary); text-decoration: underline; }
+.ai-answer.md :deep(hr) { border: none; border-top: 1px solid var(--border-light); margin: 10px 0; }
+.ai-answer.md :deep(blockquote) {
+  margin: 6px 0; padding: 2px 12px; border-left: 2px solid var(--border-strong);
+  color: var(--text-2);
 }
 .cancelled-mark { color: var(--text-3); font-size: 12px; }
 .ai-error { color: var(--danger); font-size: 13px; display: flex; align-items: center; gap: 10px; }

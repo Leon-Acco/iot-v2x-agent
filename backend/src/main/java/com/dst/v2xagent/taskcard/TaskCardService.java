@@ -53,7 +53,59 @@ public class TaskCardService {
 
     /** 创建任务卡：重新执行固化水位 → 快照入库 → PDF 落盘 */
     public Map<String, Object> create(PermissionContext ctx, CreateRequest req) throws Exception {
-        CapabilityDefinition def = capabilityRegistry.require(req.capabilityId());
+        CapabilityDefinition def = resolveDefinition(req.capabilityId());
+        // copilot 参数键与 capability 参数名不同源（time_range_display 等），按目标参数集白名单归一
+        Map<String, Object> params = sanitizeParams(def, req.params());
+        return doCreate(ctx, new CreateRequest(req.title(), req.capabilityId(),
+                params, req.runId(), req.traceId(), req.conclusion()), def);
+    }
+
+    /**
+     * 参数归一：别名映射（time_range_display -> time_range）+ 未知键剔除
+     * （ParamResolver 对未知键严格报错，copilot 透传的 hours/limit 等会拦截）。
+     */
+    private Map<String, Object> sanitizeParams(CapabilityDefinition def, Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        java.util.Set<String> known = new java.util.HashSet<>();
+        for (CapabilityDefinition.ParamDef p : def.getParams()) {
+            if (p.getName() != null) {
+                known.add(p.getName());
+            }
+        }
+        Map<String, Object> work = new java.util.LinkedHashMap<>(raw);
+        Object tr = work.remove("time_range_display");
+        if (tr != null) {
+            work.putIfAbsent("time_range", tr);
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : work.entrySet()) {
+            if (known.contains(e.getKey())) {
+                out.put(e.getKey(), e.getValue());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 能力定义解析：registry 直查；查不到时按 copilot 工具目录映射
+     * （对话流工具是 copilot 内部体系如 real_alarm_count/中文名，与 capability id 不同源）。
+     */
+    private CapabilityDefinition resolveDefinition(String capabilityId) throws Exception {
+        try {
+            return capabilityRegistry.require(capabilityId);
+        } catch (Exception notFound) {
+            String mapped = com.dst.v2xagent.copilot.CopilotToolCatalog.registryIdOf(capabilityId);
+            if (mapped != null) {
+                return capabilityRegistry.require(mapped);
+            }
+            throw notFound;
+        }
+    }
+
+    private Map<String, Object> doCreate(PermissionContext ctx, CreateRequest req,
+                                         CapabilityDefinition def) throws Exception {
         ParamResolver.ResolvedParams resolved = paramResolver.resolve(def, req.params(), ctx, ZonedDateTime.now());
         TableResult table = capabilityExecutor.execute(def, resolved, ctx);
 

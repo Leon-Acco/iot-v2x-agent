@@ -66,7 +66,7 @@ function toggleSess() {
 
 const samples = [
   '近 7 天各类告警次数',
-  '粤M32543 最近怎么回事',
+  '粤C10003 最近怎么回事',
   '离线超 24 小时的车有哪些'
 ]
 
@@ -96,12 +96,11 @@ const chatW = ref(400)
 try { const w = parseInt(localStorage.getItem(LS_COLW) || '', 10); if (w >= 320 && w <= 620) chatW.value = w } catch (e) { /* ignore */ }
 const focusBar = ref(null)
 
-// streaming 时对话列自动收窄让位画布（查询进行中数据区更需要空间）；会话折叠为 60px 窄条
+// 对话列宽度固定（用户反馈"框框不固定"：查询中自动收窄会让对话区跳动，已移除）
 // 列宽走 CSS 变量：响应式断点仍可在 CSS 里覆盖（inline grid-template 会让 media 失效）
 const gridStyle = computed(() => {
-  const w = streaming.value ? Math.min(chatW.value, 360) : chatW.value
   return {
-    '--chat-col': w + 'px',
+    '--chat-col': chatW.value + 'px',
     '--sess-col': sessFolded.value ? '60px' : '200px'
   }
 })
