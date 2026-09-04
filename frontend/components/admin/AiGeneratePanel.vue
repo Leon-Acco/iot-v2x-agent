@@ -206,7 +206,7 @@ onMounted(loadTables)
 </script>
 
 <style scoped>
-.ai-panel { display: grid; grid-template-columns: 5fr 6fr; gap: 14px; align-items: start; }
+.ai-panel { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; align-items: start; }
 .input-card, .preview-card { padding: 18px; }
 .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .spark { color: #4F46E5; }
@@ -305,6 +305,17 @@ onMounted(loadTables)
 .save-ok { color: var(--primary-deep); background: var(--primary-light); font-size: 12px; padding: 8px 12px; border-radius: 8px; margin-top: 10px; }
 .r-actions { display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end; }
 @media (max-width: 1100px) {
-  .ai-panel { grid-template-columns: 1fr; }
+  .ai-panel { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ≤760：长表名/字段名允许折行，数据表清单不再撑出页面横向滚动 */
+@media (max-width: 760px) {
+  .picker-item { flex-wrap: wrap; }
+  .t-name { min-width: 0; overflow-wrap: anywhere; }
+  .t-comment { overflow-wrap: anywhere; }
+  .col-detail { padding-left: 12px; }
+  .col-row { flex-wrap: wrap; }
+  .c-name { min-width: 0; overflow-wrap: anywhere; }
+  .c-comment { white-space: normal; overflow-wrap: anywhere; }
 }
 </style>

@@ -322,7 +322,7 @@ onMounted(loadAll)
   background: #4F46E5; color: #fff; font-size: 11px; border-radius: 9px; text-align: center; padding: 0 4px;
 }
 .tab-actions { display: flex; gap: 10px; }
-.ai-btn { color: #4F46E5; border-color: #c7d2fe; background: #eef2ff; }
+.ai-btn { height: 36px; padding: 0 18px; font-size: 13px; color: #4F46E5; border-color: #c7d2fe; background: #eef2ff; }
 .ai-btn:hover { background: #e0e7ff; border-color: #818cf8; color: #4338ca; }
 
 .list-panel { padding: 16px 18px; }
@@ -345,5 +345,13 @@ onMounted(loadAll)
 
 @media (max-width: 1100px) {
   .stat-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ≤760：标签栏纵向堆叠（Tab 组一行 + 操作按钮一行），操作按钮等宽铺满防文字换行 */
+@media (max-width: 760px) {
+  .tab-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .tab-group { overflow-x: auto; }
+  .tab-item { white-space: nowrap; }
+  .tab-actions .btn { flex: 1; white-space: nowrap; }
 }
 </style>
