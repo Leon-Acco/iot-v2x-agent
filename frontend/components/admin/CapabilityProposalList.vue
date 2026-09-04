@@ -118,6 +118,14 @@ onMounted(load)
 .filter-chip:hover { border-color: var(--primary-600); color: var(--primary); }
 .filter-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 .total { font-size: 12px; color: var(--text-3); margin-left: auto; }
+
+/* ≤760：筛选按钮独占一行，「共 N 张」换行到下一行；卡内英文/数字长 token 可折行 */
+@media (max-width: 760px) {
+  .filter-row { flex-wrap: wrap; }
+  .filter-chip { white-space: nowrap; }
+  .total { margin-left: 0; flex-basis: 100%; }
+  .p-id, .s-item, .p-meta, .reject-reason { overflow-wrap: anywhere; }
+}
 .load-error { color: var(--danger); padding: 30px; text-align: center; }
 .empty { text-align: center; color: var(--text-3); padding: 40px 0; font-size: 13px; }
 

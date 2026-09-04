@@ -36,12 +36,12 @@
           <span v-else class="score-none">-</span>
         </td>
         <td class="ops">
-          <button class="btn op view" @click="$emit('detail', c)">详情</button>
-          <button class="btn op" @click="$emit('edit', c)">编辑</button>
-          <button class="btn op" @click="$emit('dryrun', c)">试跑</button>
-          <button class="btn op" @click="$emit('history', c)">历史</button>
-          <button v-if="c.status !== 'online'" class="btn op up" @click="$emit('status', c, 'online')">上线</button>
-          <button v-else class="btn op down" @click="$emit('status', c, 'deprecated')">下线</button>
+          <button class="op view" @click="$emit('detail', c)">详情</button>
+          <button class="op" @click="$emit('edit', c)">编辑</button>
+          <button class="op" @click="$emit('dryrun', c)">试跑</button>
+          <button class="op" @click="$emit('history', c)">历史</button>
+          <button v-if="c.status !== 'online'" class="op up" @click="$emit('status', c, 'online')">上线</button>
+          <button v-else class="op down" @click="$emit('status', c, 'deprecated')">下线</button>
         </td>
       </tr>
       <tr v-if="!items.length">
@@ -102,19 +102,28 @@ function domainStyle(domain) {
 .domain-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
 .kind-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #F3F4F6; color: var(--text-2); }
 .kind-tag.orchestration { background: #eaf6f1; color: #4F46E5; }
-.ops-col { width: 280px; }
+.ops-col { width: 300px; }
 .score-pill { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 9px; cursor: default; }
 .score-pill.good { background: var(--primary-light); color: var(--primary-deep); }
 .score-pill.mid { background: #fffbeb; color: #b45309; }
 .score-pill.bad { background: #fee2e2; color: #b91c1c; }
 .score-none { font-size: 11px; color: var(--text-3); }
-.op.view { color: #4F46E5; }
-.op.view:hover { background: #eef2ff; color: #4338ca; }
+/* 操作按钮三档层次：详情=靛蓝软底 / 例行动作=灰软底 / 上线下线=状态色软底，彼此 6px 间距 */
 .ops { white-space: nowrap; }
-.op { padding: 4px 10px; font-size: 12px; }
-.op.up { color: var(--success); }
-.op.up:hover { background: rgba(34,197,94,.1); color: var(--success); }
-.op.down { color: var(--danger); }
-.op.down:hover { background: rgba(239,68,68,.08); color: var(--danger); }
+.op {
+  height: 26px; padding: 0 11px; margin-left: 6px; border-radius: 999px;
+  border: none; background: #F3F4F6; color: var(--text-2);
+  font: inherit; font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center;
+  transition: background .15s ease, color .15s ease;
+}
+.op:first-child { margin-left: 0; }
+.op:hover { background: rgba(13, 64, 38, .09); color: var(--text-1); }
+.op.view { background: #eef2ff; color: #4F46E5; }
+.op.view:hover { background: #e0e7ff; color: #4338ca; }
+.op.up { background: rgba(23, 160, 94, .12); color: var(--success); font-weight: 600; }
+.op.up:hover { background: rgba(23, 160, 94, .22); color: var(--success); }
+.op.down { background: rgba(214, 69, 69, .1); color: var(--danger); font-weight: 600; }
+.op.down:hover { background: rgba(214, 69, 69, .18); color: var(--danger); }
 .empty-cell { text-align: center; color: var(--text-3); padding: 36px 0; }
 </style>
