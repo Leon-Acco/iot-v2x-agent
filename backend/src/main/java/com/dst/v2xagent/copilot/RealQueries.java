@@ -99,7 +99,27 @@ public class RealQueries {
                 + " WHERE b.del_flag = 0 AND (b.car_no LIKE ? OR b.vin_code LIKE ?) "
                 + aclFragment(aclOrgs(ctx), "b.org_name", params)
                 + " LIMIT 10";
-        return jdbc.queryForList(sql, params.toArray());
+        List<Map<String, Object>> rows = jdbc.queryForList(sql, params.toArray());
+        System.out.println("[resolveVehicles] input=" + escapeCodepoints(vehicle)
+                + " like=" + escapeCodepoints(like) + " rows=" + rows.size());
+        return rows;
+    }
+
+    /** 排障用：字符串码点转义（中文/隐藏字符可见） */
+    private static String escapeCodepoints(String s) {
+        if (s == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c < 128) {
+                sb.append(c);
+            } else {
+                sb.append(String.format("\\u%04x", (int) c));
+            }
+        }
+        return sb.toString();
     }
 
     /** 车辆档案 */

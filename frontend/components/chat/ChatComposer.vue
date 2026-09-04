@@ -1,17 +1,24 @@
 <template>
-  <!-- 输入栏：工具选择器 + 总前台 input-bar，药丸输入框 + 圆形 teal 发送钮 -->
+  <!-- 输入栏：工具选择器（搜索 + 常用置顶）+ 总前台 input-bar，药丸输入框 + 圆形 teal 发送钮 -->
   <div class="input-bar-wrap">
     <div class="tool-row" v-if="toolOptions.length">
-      <span class="tool-label">工具</span>
+      <input
+        v-model="toolSearch"
+        class="tool-search"
+        type="text"
+        placeholder="搜工具…"
+        aria-label="搜索工具"
+      />
       <button
-        v-for="t in toolOptions"
+        v-for="t in shownTools"
         :key="t.id"
         class="tool-chip"
-        :class="{ on: forcedTool === t.id }"
+        :class="{ on: forcedTool === t.id, hot: hotIds.includes(t.id) }"
         type="button"
-        :title="t.description || t.display"
+        :title="(t.description || t.display) + '（点击使用智能路由时无需选择）'"
         @click="pick(t.id)"
       >{{ t.display }}</button>
+      <span v-if="!shownTools.length" class="tool-empty">无匹配工具</span>
     </div>
     <div class="input-bar">
       <input
@@ -50,6 +57,39 @@ const ta = ref(null)
 // 工具选择器：默认智能路由（null），可选 Copilot 工具强制路由；拉取失败静默退化
 const toolOptions = ref([])
 const forcedTool = ref(null)
+const toolSearch = ref('')
+
+// 常用置顶：记录每个工具的使用次数（localStorage），Top3 标记为 hot 排前面
+const LS_USAGE = 'v2x.tools.usage'
+const usage = ref({})
+try { usage.value = JSON.parse(localStorage.getItem(LS_USAGE) || '{}') } catch (e) { usage.value = {} }
+
+const hotIds = computed(() => {
+  return Object.entries(usage.value)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id]) => id)
+})
+
+// 展示顺序：常用在前，搜索词过滤（display/description 匹配）
+const shownTools = computed(() => {
+  const k = toolSearch.value.trim().toLowerCase()
+  let list = toolOptions.value
+  if (k) {
+    list = list.filter(t =>
+      (t.display || '').toLowerCase().includes(k) ||
+      (t.description || '').toLowerCase().includes(k) ||
+      (t.id || '').toLowerCase().includes(k))
+  }
+  const hot = hotIds.value
+  return list.slice().sort((a, b) => {
+    const ha = hot.indexOf(a.id), hb = hot.indexOf(b.id)
+    if (ha >= 0 && hb >= 0) return ha - hb
+    if (ha >= 0) return -1
+    if (hb >= 0) return 1
+    return 0
+  })
+})
 
 onMounted(async () => {
   try {
@@ -67,6 +107,11 @@ const forcedDisplay = computed(() => {
 
 function pick(id) {
   forcedTool.value = forcedTool.value === id ? null : id
+  if (id) {
+    // 使用计数 +1（置顶排序依据）
+    usage.value[id] = (usage.value[id] || 0) + 1
+    try { localStorage.setItem(LS_USAGE, JSON.stringify(usage.value)) } catch (e) { /* ignore */ }
+  }
 }
 
 function onSend() {
@@ -90,13 +135,21 @@ defineExpose({ setText })
   background: rgba(255, 255, 255, 0.55);
 }
 .tool-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; max-width: 860px; margin-left: auto; margin-right: auto; }
-.tool-label { font-size: 10.5px; letter-spacing: 2px; color: var(--text-3); margin-right: 2px; }
+.tool-search {
+  height: 24px; width: 86px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--border-default); background: #fff;
+  font: inherit; font-size: 11.5px; color: var(--text-1); outline: none;
+  transition: width .2s ease, border-color .15s;
+}
+.tool-search:focus { width: 120px; border-color: var(--green-deep); }
+.tool-empty { font-size: 11px; color: var(--text-3); }
 .tool-chip {
   height: 24px; padding: 0 11px; border-radius: 999px;
   border: 1px solid var(--border-default); background: #fff;
   color: var(--text-3); font: inherit; font-size: 11.5px; cursor: pointer;
   transition: all .15s ease; white-space: nowrap;
 }
+.tool-chip.hot { border-color: rgba(23, 160, 94, .45); color: var(--green-ink); }
 .tool-chip:hover { border-color: var(--green-deep); color: var(--green-ink); }
 .tool-chip.on {
   background: rgba(23, 160, 94, .12); border-color: var(--green-deep);

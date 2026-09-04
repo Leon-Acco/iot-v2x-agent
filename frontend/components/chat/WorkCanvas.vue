@@ -3,12 +3,20 @@
   <section class="work-canvas">
     <div class="wc-head">
       <span class="wc-title">{{ title }}</span>
-      <span v-if="dataAsOf" class="wc-asof">{{ dataAsOf }}</span>
+      <span class="wc-head-ops">
+        <span v-if="dataAsOf" class="wc-asof">
+          {{ dataAsOf }}<template v-if="delayHours != null">（延迟约 {{ delayHours }} 小时）</template>
+        </span>
+        <button class="wc-op-btn" type="button" title="重跑最近一次查询，拿最新数据" @click="$emit('refresh')">刷新</button>
+        <button v-if="result" class="wc-op-btn" type="button" title="导出 CSV（数据表全文）" @click="exportCsv">CSV</button>
+        <button v-if="chartOption" class="wc-op-btn" type="button" title="导出当前图表为 PNG" @click="exportPng">PNG</button>
+      </span>
     </div>
 
     <div v-if="isEmpty" class="wc-empty">
       <div class="wc-empty-icon">&#128202;</div>
       <div class="wc-empty-text">{{ emptyText }}</div>
+      <div class="wc-empty-sub">点击图表中的柱子/折点，可发起针对性追问</div>
     </div>
 
     <div v-else class="wc-body">
@@ -43,12 +51,12 @@
                 class="wc-switch-btn"
                 :class="{ on: activeChartType === t }"
                 type="button"
-                @click="activeChartType = t"
+                @click="pickChartType(t)"
               >{{ chartTypeLabel(t) }}</button>
             </span>
             <span v-if="resultCaption" class="wc-card-caption">{{ resultCaption }}</span>
           </div>
-          <ChartPanel v-if="chartOption" :option="chartOption" height="300px" />
+          <ChartPanel v-if="chartOption" ref="chartRef" :option="chartOption" height="300px" @point-click="onPointClick" />
           <div class="wc-table-wrap">
             <DataTable
               :columns="result.columns || []"
@@ -68,6 +76,7 @@ const props = defineProps({
   stream: { type: Object, default: null },
   sampleHint: { type: String, default: '' }
 })
+const emit = defineEmits(['drill', 'refresh'])
 
 const EMPTY = '提问后，这里展示图表、地图、表格与分析结果'
 
@@ -91,6 +100,14 @@ const dataAsOf = computed(() => {
   const f = result.value && result.value.freshness
   return f && f.dataAsOf ? '数据截至 ' + f.dataAsOf : ''
 })
+// 数据延迟：当前时间 - 数据截至时间（小时）
+const delayHours = computed(() => {
+  const f = result.value && result.value.freshness
+  if (!f || !f.dataAsOf) return null
+  const t = Date.parse(String(f.dataAsOf).replace(' ', 'T'))
+  if (isNaN(t)) return null
+  return Math.max(0, Math.round((Date.now() - t) / 3600000))
+})
 const resultTitle = computed(() => {
   if (!result.value) return ''
   return result.value.capabilityId || '查询结果'
@@ -101,14 +118,29 @@ const resultCaption = computed(() => {
   return '共 ' + (n == null ? 0 : n) + ' 行数据' + (result.value.truncated ? '（已截断）' : '')
 })
 
-// 图表类型切换：默认取后端 chartType，前端可在 折线/柱状/面积/表格 间切换（自构 option 红线）
+// 图表类型切换：默认取后端 chartType；每个数据集记住上次选择（localStorage per capability）
 const chartTypes = ['bar', 'line', 'area', 'table']
 const activeChartType = ref('bar')
+const chartRef = ref(null)
+
+function tabKey(r) {
+  return 'v2x.chart.tab.' + ((r && r.capabilityId) || 'default')
+}
 
 watch(result, (r) => {
-  activeChartType.value = (r && r.chart && r.chart.chartType) || 'bar'
-  if (!chartTypes.includes(activeChartType.value)) activeChartType.value = 'bar'
+  let t = (r && r.chart && r.chart.chartType) || 'bar'
+  try {
+    const saved = localStorage.getItem(tabKey(r))
+    if (saved && chartTypes.includes(saved)) t = saved
+  } catch (e) { /* ignore */ }
+  if (!chartTypes.includes(t)) t = 'bar'
+  activeChartType.value = t
 })
+
+function pickChartType(t) {
+  activeChartType.value = t
+  try { localStorage.setItem(tabKey(result.value), t) } catch (e) { /* ignore */ }
+}
 
 function chartTypeLabel(t) {
   const labels = { bar: '柱状', line: '折线', area: '面积', table: '表格' }
@@ -120,6 +152,42 @@ const chartOption = computed(() => {
   if (activeChartType.value === 'table') return null
   return buildChartOption(activeChartType.value, result.value.columns, result.value.rows)
 })
+
+// ---------- 导出 ----------
+/** CSV 导出：表头 + 全部行（与对话结论同一数据源） */
+function exportCsv() {
+  const r = result.value
+  if (!r || !r.columns) return
+  const cols = r.columns.map(c => (c.display || c.name) + (c.unit ? '(' + c.unit + ')' : ''))
+  const lines = [cols.join(',')]
+  for (const row of (r.rows || [])) {
+    lines.push(row.map(cell => {
+      const s = cell == null ? '' : String(cell)
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }).join(','))
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = ((r.capabilityId || 'query') + '-' + new Date().toISOString().slice(0, 10)) + '.csv'
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+}
+
+/** PNG 导出：当前 ECharts 图（交给 ChartPanel 实例） */
+function exportPng() {
+  if (chartRef.value) chartRef.value.exportPng((result.value && result.value.capabilityId) || 'chart')
+}
+
+// ---------- 图表 -> 对话联动 ----------
+/** 点柱/折点下钻：把维度值变成可直接执行的追问，回显到对话流 */
+function onPointClick(params) {
+  const name = params && params.name
+  if (!name) return
+  const isDate = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(String(name))
+  const q = isDate ? '看 ' + name + ' 当天的明细' : '只看' + name
+  emit('drill', q)
+}
 </script>
 
 <style scoped>
@@ -131,16 +199,24 @@ const chartOption = computed(() => {
 }
 .wc-head {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 14px; gap: 10px; flex-wrap: wrap;
 }
 .wc-title { font-size: 16px; font-weight: 700; color: var(--text-1, #171717); }
+.wc-head-ops { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wc-asof { font-size: 11px; color: var(--text-3, #a1a1a1); }
+.wc-op-btn {
+  height: 24px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid var(--border-default, #e5e7eb); background: #fff;
+  color: var(--text-2, #737373); font: inherit; font-size: 11px; cursor: pointer;
+}
+.wc-op-btn:hover { border-color: var(--green-deep); color: var(--green-ink); }
 .wc-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: var(--text-3, #a1a1a1); gap: 12px;
 }
 .wc-empty-icon { font-size: 42px; opacity: .5; }
 .wc-empty-text { font-size: 13px; }
+.wc-empty-sub { font-size: 11.5px; opacity: .75; }
 .wc-body { display: flex; flex-direction: column; gap: 16px; }
 .wc-viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 14px; }
 .wc-card {

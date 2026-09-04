@@ -21,5 +21,10 @@ export function useChart() {
     if (chart) { chart.dispose(); chart = null }
   }
 
-  return { mount, setOption, resize, dispose }
+  /** 暴露原始实例（点击事件 / getDataURL 导出等高级用法） */
+  function getChart() {
+    return chart
+  }
+
+  return { mount, setOption, resize, dispose, getChart }
 }

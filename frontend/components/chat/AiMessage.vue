@@ -23,7 +23,7 @@
             <span class="seg-icon">{{ seg.icon }}</span>{{ seg.text }}
           </div>
           <div v-else-if="seg.kind === 'gap'" class="seg-gap"></div>
-          <div v-else class="seg-line">{{ seg.text }}</div>
+          <div v-else class="seg-line" :class="{ receipt: seg.receipt }">{{ seg.text }}</div>
         </template>
       </div>
     </div>
@@ -34,13 +34,21 @@
     </div>
 
     <template v-else>
-      <ToolCallNarrative :tools="tools" />
+      <ToolCallNarrative :tools="tools" @retry="$emit('retry')" />
 
       <template v-if="answer">
         <div class="answer-label">结论</div>
         <div class="ai-answer">{{ answer }}<span v-if="cancelled" class="cancelled-mark">（已手动停止生成）</span></div>
       </template>
       <div v-else-if="cancelled" class="ai-answer cancelled-mark">（已手动停止生成）</div>
+
+      <!-- 关键数字卡片：小结果集（≤4 行且有数值列）升级为卡片行，差异一目了然 -->
+      <div v-if="metricCards.length" class="metric-cards">
+        <div v-for="(c, i) in metricCards" :key="i" class="metric-card">
+          <div class="mc-value">{{ c.value }}<span v-if="c.unit" class="mc-unit">{{ c.unit }}</span></div>
+          <div class="mc-label">{{ c.label }}</div>
+        </div>
+      </div>
 
       <!-- 内嵌任务卡：生成后直接在消息流内展示 -->
       <TaskCardInline v-if="taskCard" :id="taskCard.id" :title="taskCard.title" />
@@ -112,7 +120,7 @@ const thinkOpen = ref(false)
 watch(thinkingActive, (v) => { thinkOpen.value = !!v })
 
 const thinkBodyRef = ref(null)
-// 思考分节：【理解问题】等标题行高亮，其余为正文行
+// 思考分节：【理解问题】等标题行高亮；【取证回执 · xxx】按前缀归组
 const SEG_ICONS = {
   '理解问题': '🔍',
   '路由决策': '📍',
@@ -125,10 +133,40 @@ const thinkSegments = computed(() => {
     const line = raw.trim()
     if (!line) { out.push({ kind: 'gap' }); continue }
     const m = line.match(/^【(.+?)】$/)
-    if (m) out.push({ kind: 'title', text: m[1], icon: SEG_ICONS[m[1]] || '•' })
-    else out.push({ kind: 'line', text: line })
+    if (m) {
+      const t = m[1]
+      const icon = SEG_ICONS[t] || (t.startsWith('取证回执') ? '📥' : '•')
+      out.push({ kind: 'title', text: t, icon })
+    } else {
+      out.push({ kind: 'line', text: line, receipt: line.startsWith('·') })
+    }
   }
   return out
+})
+
+// 关键数字卡片：结果 ≤4 行且含数值列时，从查询结果提取 卡片（label + value + unit）
+const metricCards = computed(() => {
+  const r = result.value
+  if (!r || !Array.isArray(r.columns) || !Array.isArray(r.rows)) return []
+  if (!r.rows.length || r.rows.length > 4) return []
+  const col = i => r.columns[i] || {}
+  let labelIdx = r.columns.findIndex(c => c.semantic === 'category')
+  if (labelIdx < 0) labelIdx = 0
+  let metricIdx = r.columns.findIndex(c => c.semantic === 'metric')
+  if (metricIdx < 0) {
+    // 兜底：第一列之外找数值型单元格
+    for (let i = 0; i < r.columns.length; i++) {
+      if (i === labelIdx) continue
+      const v = r.rows[0][i]
+      if (v != null && !isNaN(parseFloat(v))) { metricIdx = i; break }
+    }
+  }
+  if (metricIdx < 0 || metricIdx === labelIdx) return []
+  return r.rows.map(row => ({
+    label: String(row[labelIdx] != null ? row[labelIdx] : ''),
+    value: row[metricIdx] != null ? row[metricIdx] : '—',
+    unit: col(metricIdx).unit || ''
+  })).filter(c => c.label)
 })
 // 流式中自动跟随滚动到最新思考
 watch(thinkingText, () => {
@@ -227,33 +265,48 @@ async function createTaskCard() {
   font: inherit; font-size: 11px; cursor: pointer;
 }
 .collapse-btn:hover { color: var(--text-1); border-color: var(--border-strong); }
-/* 思考折叠块 */
+/* 思考折叠块（对齐 Office_Agent 浅底卡：#FAFBFC + 细边框 + 12px 圆角） */
 .think-block {
-  margin: 0 0 10px; border-left: 2px solid rgba(23, 160, 94, .35);
-  background: rgba(23, 160, 94, .04); border-radius: 0 10px 10px 0;
+  margin: 0 0 10px;
+  background: #FAFBFC; border: 1px solid var(--border-light, #F3F4F6); border-radius: 12px;
 }
 .think-toggle {
   display: flex; align-items: center; gap: 7px; width: 100%;
-  padding: 7px 12px; border: none; background: none; color: var(--text-3);
+  padding: 8px 14px; border: none; background: none; color: var(--text-3);
   font: inherit; font-size: 12px; cursor: pointer; text-align: left;
 }
 .think-toggle:hover { color: var(--green-ink); }
 .think-caret { margin-left: auto; transition: transform .15s; }
 .think-caret.up { transform: rotate(180deg); }
 .think-body {
-  max-height: 260px; overflow-y: auto; padding: 2px 14px 12px;
+  max-height: 300px; overflow-y: auto; padding: 2px 14px 12px;
 }
 .seg-title {
   display: flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 600; color: var(--green-deep, #0b6e55);
-  letter-spacing: 1px; margin: 10px 0 4px;
+  font-size: 12px; font-weight: 600; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .5px; margin: 10px 0 4px;
 }
 .seg-title:first-child { margin-top: 2px; }
 .seg-icon { font-size: 13px; }
 .seg-gap { height: 4px; }
 .seg-line {
-  font-size: 12.5px; line-height: 1.85; color: var(--text-2, #475569);
+  font-size: 12.5px; line-height: 1.8; color: var(--text-2, #4B5563);
   white-space: pre-wrap; word-break: break-word; padding-left: 19px;
+}
+/* 取证回执行（· 开头）：等宽数字 + 稍浅 */
+.seg-line.receipt { font-variant-numeric: tabular-nums; color: var(--text-secondary, #6B7280); }
+/* 关键数字卡片行 */
+.metric-cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+.metric-card {
+  min-width: 108px; max-width: 180px; flex: 1;
+  padding: 10px 14px; border-radius: 12px;
+  background: #FAFBFC; border: 1px solid var(--border-light, #F3F4F6);
+}
+.mc-value { font-size: 22px; font-weight: 600; color: var(--text-1); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.mc-unit { font-size: 12px; font-weight: 400; color: var(--text-3); margin-left: 3px; }
+.mc-label {
+  font-size: 12px; color: var(--text-3); margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* 折叠态摘要 */
 .collapsed-summary {

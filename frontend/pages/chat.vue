@@ -4,19 +4,22 @@
     <template #topbar>
       <button class="sess-restore" type="button" :aria-expanded="sessFolded ? 'true' : 'false'" @click="toggleSess">⟨ 历史会话</button>
     </template>
-    <div class="workbench">
-      <SessionSidebar
-        :sessions="sessions"
-        :active-id="activeId"
-        :folded="sessFolded"
-        @create="newSession"
-        @select="selectSession"
-        @fold="toggleSess"
-        @rename="onRename"
-        @delete="onDeleteSession"
-      />
-      <WorkCanvas :stream="activeStream" />
-      <div class="chat-main">
+    <div class="wb-wrap">
+      <FocusBar ref="focusBar" @ask="q => send(q)" />
+      <div class="workbench" :style="gridStyle">
+        <SessionSidebar
+          :sessions="sessions"
+          :active-id="activeId"
+          :folded="sessFolded"
+          @create="newSession"
+          @select="selectSession"
+          @fold="toggleSess"
+          @rename="onRename"
+          @delete="onDeleteSession"
+        />
+        <WorkCanvas :stream="activeStream" @drill="onDrillAsk" @refresh="onRefreshLast" />
+        <div class="col-resizer" role="separator" aria-orientation="vertical" @pointerdown="startResize"></div>
+        <div class="chat-main">
         <div class="chat-head">
           <span class="ck">对话流</span>
           <span class="ca">设备运营 Agent</span>
@@ -35,6 +38,7 @@
         <div class="composer-wrap">
           <ChatComposer ref="composer" :streaming="streaming" @send="send" @stop="onStop" />
         </div>
+      </div>
       </div>
     </div>
   </AppShell>
@@ -57,12 +61,12 @@ let editFromId = null
 function toggleSess() {
   sessFolded.value = !sessFolded.value
   document.body.classList.toggle('folded-sess', sessFolded.value)
-  try { localStorage.setItem(LS_SESS_FOLDED, sessFolded.value ? '1' : '') } catch (e) { /* ignore */ }
+  try { localStorage.setItem(LS_SESS_FOLDED, sessFolded.value ? '1' : '0') } catch (e) { /* ignore */ }
 }
 
 const samples = [
   '近 7 天各类告警次数',
-  '粤BD96880 最近怎么回事',
+  '粤M32543 最近怎么回事',
   '离线超 24 小时的车有哪些'
 ]
 
@@ -85,6 +89,52 @@ const followUps = computed(() => {
 const streaming = computed(() =>
   messages.value.some(m => m.role === 'ai' && m.stream.isRunning.value)
 )
+
+// ---------- 画布/对话列拖拽调宽：数据工作台为主、对话为辅 ----------
+const LS_COLW = 'v2x.chat.colw'
+const chatW = ref(400)
+try { const w = parseInt(localStorage.getItem(LS_COLW) || '', 10); if (w >= 320 && w <= 620) chatW.value = w } catch (e) { /* ignore */ }
+const focusBar = ref(null)
+
+// streaming 时对话列自动收窄让位画布（查询进行中数据区更需要空间）；会话折叠为 60px 窄条
+// 列宽走 CSS 变量：响应式断点仍可在 CSS 里覆盖（inline grid-template 会让 media 失效）
+const gridStyle = computed(() => {
+  const w = streaming.value ? Math.min(chatW.value, 360) : chatW.value
+  return {
+    '--chat-col': w + 'px',
+    '--sess-col': sessFolded.value ? '60px' : '200px'
+  }
+})
+
+function startResize(e) {
+  e.preventDefault()
+  const onMove = ev => {
+    const w = Math.min(620, Math.max(320, window.innerWidth - ev.clientX - 24))
+    chatW.value = w
+  }
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    document.body.classList.remove('resizing-col')
+    try { localStorage.setItem(LS_COLW, String(chatW.value)) } catch (err) { /* ignore */ }
+  }
+  document.body.classList.add('resizing-col')
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+
+// ---------- 画布联动回调 ----------
+/** 图表点柱下钻：把维度值回填为可执行的追问（下钻路径回显到对话里） */
+function onDrillAsk(q) {
+  if (q) send(q)
+}
+
+/** 手动刷新：重跑最近一次 AI 查询（拿最新数据）并刷新今日关注 */
+function onRefreshLast() {
+  const last = [...messages.value].reverse().find(m => m.role === 'ai' && m.question)
+  if (last) onRetry(last)
+  if (focusBar.value) focusBar.value.reload()
+}
 
 // 三区联动：右侧面板绑定最近一条有查询结果的 AI 消息
 const activeStream = computed(() => {
@@ -433,8 +483,8 @@ function loadMessages(id) {
 }
 
 onMounted(async () => {
-  // 折叠态恢复
-  sessFolded.value = localStorage.getItem(LS_SESS_FOLDED) === '1'
+  // 折叠态恢复：默认收起为窄条（显式存过 '0' 才展开）
+  sessFolded.value = localStorage.getItem(LS_SESS_FOLDED) !== '0'
   document.body.classList.toggle('folded-sess', sessFolded.value)
   await loadSessions()
   // 活跃流所在会话优先（SPA 切页回来接续渲染），否则最近会话
@@ -449,16 +499,23 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* v3a 运营工作台三栏：会话 200px｜数据画布（≤400px）｜聊天室最右最宽；高度吃满视口（吃掉 .page 底衬） */
-.workbench {
-  /* 对话流收窄（340px），数据工作台加宽 */
-  display: grid; grid-template-columns: 200px minmax(0, 340px) minmax(0, 1fr);
-  gap: 12px; align-items: stretch;
+/* 运营工作台：会话栏｜数据画布（主位 1fr）｜拖拽条｜对话流（窄列） */
+.wb-wrap {
+  display: flex; flex-direction: column;
   height: calc(100vh - var(--topbar-h) - var(--topbar-gap));
-  margin-top: 0px;
   margin-bottom: calc(-1 * var(--page-pad-b));
 }
+.workbench {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: var(--sess-col, 200px) minmax(0, 1fr) 6px var(--chat-col, 400px);
+  gap: 12px; align-items: stretch;
+}
 .workbench > * { min-height: 0; min-width: 0; }
+/* 画布/对话列拖拽条：hover 高亮，拖动中全局禁选中 */
+.col-resizer { cursor: col-resize; border-radius: 3px; background: transparent; transition: background .15s; }
+.col-resizer:hover { background: rgba(23, 160, 94, .25); }
+:global(body.resizing-col) { cursor: col-resize; user-select: none; }
 .sess-restore {
   display: none; height: 26px; padding: 0 12px; border-radius: 999px;
   border: 1px dashed rgba(23, 160, 94, .55); background: rgba(23, 160, 94, .06);
@@ -492,10 +549,12 @@ onMounted(async () => {
 }
 
 @media (max-width: 1180px) {
-  .workbench { grid-template-columns: minmax(0, 320px) minmax(0, 1fr); }
+  .workbench { grid-template-columns: var(--sess-col, 170px) minmax(0, 1fr) 6px min(var(--chat-col, 400px), 360px); }
 }
 @media (max-width: 880px) {
   .workbench { grid-template-columns: minmax(0, 1fr); height: auto; margin-bottom: 0; }
+  .wb-wrap { height: auto; margin-bottom: 0; }
+  .col-resizer { display: none; }
   .workbench > :deep(.work-canvas) { order: 3; }
   .chat-main { order: 2; }
 }

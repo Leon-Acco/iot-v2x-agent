@@ -129,12 +129,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   body.folded-nav .nav-fold { transform: rotate(180deg); }
 }
 
-/* 历史会话折叠（/chat 工作台） */
-body.folded-sess .sessions { display: none; }
+/* 历史会话折叠（/chat 工作台）：折叠为 60px 窄条（新建 + 最近会话缩写），不再整栏隐藏 */
 body.folded-sess .sess-restore { display: inline-flex; }
-@media (min-width: 881px) {
-  body.folded-sess .workbench { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); }
-}
 
 /* ===== 移动端硬化 ===== */
 @media (max-width: 760px) {

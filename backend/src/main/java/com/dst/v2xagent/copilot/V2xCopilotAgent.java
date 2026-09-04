@@ -131,31 +131,112 @@ public class V2xCopilotAgent implements Agent {
         sink.emit(AgUiEvent.of("THINKING_DELTA", java.util.Map.of("delta", text)));
     }
 
-    /** 理解阶段思考：用户问题 + 关键信息识别 */
-    private void thinkUnderstand(AguiFluxSink sink, String question) {
-        think(sink, "\n【理解问题】\n"
-                + "用户提问：" + question + "\n"
-                + "正在识别关键信息（车辆、时间范围、意图），并判断需要哪类数据能力…\n");
+    /** 车牌正则：省份简称汉字 + 发牌机关字母 + 序号（如 粤M32543） */
+    private static final java.util.regex.Pattern PLATE_P =
+            java.util.regex.Pattern.compile("[\\u4e00-\\u9fa5][A-HJ-NPR-Z][A-HJ-NPR-Z0-9]{4,6}");
+    /** VIN 正则：17 位（排除易混字符） */
+    private static final java.util.regex.Pattern VIN_P =
+            java.util.regex.Pattern.compile("\\b[A-HJ-NPR-Z0-9]{17}\\b");
+    /** 时间词正则：近 N 天/本周/上月等口语时间表达 */
+    private static final java.util.regex.Pattern TIME_P = java.util.regex.Pattern.compile(
+            "(?:最近|近)?\\d+\\s*(?:天|日|周|月|小时)(?:内|以[内来]?)?|今[天日]|昨[天日]|本[周月年]|上[周月年]|这[周月]");
+
+    /** 理解阶段思考：对问题做结构化拆解（本地实体抽取——车辆/时间/意图，路由前即可给出真实内容） */
+    private void thinkUnderstand(AguiFluxSink sink, String question, String historyTail) {
+        String plate = findFirst(PLATE_P, question);
+        String vin = plate == null ? findFirst(VIN_P, question) : null;
+        String timeWord = findFirst(TIME_P, question);
+        StringBuilder sb = new StringBuilder("\n【理解问题】\n");
+        sb.append("用户提问：").append(question).append('\n');
+        sb.append("我先把问题拆解成三个要素：\n");
+        sb.append("- 目标车辆：");
+        if (plate != null) {
+            sb.append("识别到「").append(plate).append("」，格式为车牌号，将解析出对应 VIN 后查询");
+        } else if (vin != null) {
+            sb.append("识别到「").append(vin).append("」，格式为 VIN 码，可直接用于查询");
+        } else {
+            sb.append("问题中未指定具体车辆，按车队级统计处理");
+        }
+        sb.append('\n');
+        sb.append("- 时间线索：");
+        if (timeWord != null) {
+            sb.append("「").append(timeWord).append("」，后续会解析为具体的日期区间");
+        } else {
+            sb.append("未提及时间，将采用默认窗口（近 7 天）");
+        }
+        sb.append('\n');
+        sb.append("- 问题意图：").append(classifyIntent(question)).append('\n');
+        if (historyTail != null && !historyTail.isBlank()) {
+            sb.append("另外本会话已有历史对话，若问题里有指代（它 / 那台车 / 再看看），我会从上文继承车辆与时间上下文。\n");
+        }
+        sb.append("接下来交给总控路由 Agent，由它决定交给哪位领域专家处理。\n");
+        think(sink, sb.toString());
     }
 
-    /** 路由阶段思考：路由结果 + 理由 + 下一步 */
-    private void thinkRoute(AguiFluxSink sink, SupervisorRouter.RouteResult rr) {
-        String domainCn = switch (rr.route() == null ? "" : rr.route()) {
-            case "vehicle" -> "车辆状态专家";
-            case "alarm" -> "告警分析专家";
-            case "fault" -> "故障诊断专家";
-            case "mileage" -> "里程分析专家";
-            case "anomaly" -> "异常探查工作流";
-            case "cross" -> "跨域综合专家";
-            case "meta" -> "平台信息查询";
-            case "chat" -> "闻聊引导";
-            default -> rr.route();
+    /** 取正则在文本中的首个命中（无则 null） */
+    private static String findFirst(java.util.regex.Pattern p, String text) {
+        if (text == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = p.matcher(text);
+        return m.find() ? m.group() : null;
+    }
+
+    /** 意图关键词分类：给理解阶段一个初步判断（最终以路由模型为准） */
+    private static String classifyIntent(String q) {
+        if (q == null) {
+            return "未识别";
+        }
+        String t = q.toLowerCase();
+        if (t.contains("怎么回事") || t.contains("异常") || t.contains("为什么") || t.contains("哪里坏")) {
+            return "异常诊断——需要多源证据交叉解释某台车的异常表现";
+        }
+        if (t.contains("告警") || t.contains("报警")) {
+            return "告警分析——统计或列举告警数据";
+        }
+        if (t.contains("故障")) {
+            return "故障诊断——定位故障部位与明细";
+        }
+        if (t.contains("里程") || t.contains("行驶")) {
+            return "里程分析——车队/车辆里程统计与趋势";
+        }
+        if (t.contains("充电")) {
+            return "充电分析——充电行为统计";
+        }
+        if (t.contains("位置") || t.contains("在哪") || t.contains("离线") || t.contains("在线")) {
+            return "车辆状态——在离线状态与位置信息";
+        }
+        if (t.contains("对比") || t.contains("比较") || t.contains("哪个")) {
+            return "对比分析——需要跨车队/跨域横向比较";
+        }
+        return "开放问题——具体方向待路由模型判定";
+    }
+
+    /** 各领域专家的一句话职责（思考流与路由说明共用） */
+    private static String domainDesc(String route) {
+        return switch (route == null ? "" : route) {
+            case "vehicle" -> "车辆状态专家（负责车辆档案、在离线状态、最后位置）";
+            case "alarm" -> "告警分析专家（负责告警类型统计、明细、车队对比）";
+            case "fault" -> "故障诊断专家（负责故障部位统计与明细）";
+            case "mileage" -> "里程分析专家（负责车队里程对比、每日里程、充电统计）";
+            case "anomaly" -> "异常探查工作流（对单车并行取证告警/故障/里程三路数据后交叉归因）";
+            case "cross" -> "跨域综合专家（负责跨数据域的复杂问题与可视化呈现）";
+            case "meta" -> "平台元信息（确定性回答，不调用工具）";
+            case "chat" -> "闲聊引导（与车辆数据无关，给出能力引导）";
+            default -> route;
         };
+    }
+
+    /** 路由阶段思考：路由结论 + 模型理由 + 槽位确认 + 上下文继承说明 */
+    private void thinkRoute(AguiFluxSink sink, SupervisorRouter.RouteResult rr, boolean hasHistory) {
         think(sink, "\n【路由决策】\n"
-                + "问题类型：" + domainCn + "\n"
-                + "判定理由：" + (rr.reason() == null || rr.reason().isBlank() ? "（未提供）" : rr.reason()) + "\n"
-                + "识别到车辆：" + (rr.vehicle() == null || rr.vehicle().isBlank() ? "未指定" : rr.vehicle()) + "\n"
-                + "时间范围：" + (rr.timeRange() == null || rr.timeRange().isBlank() ? "未指定（将使用默认）" : rr.timeRange()) + "\n");
+                + "路由 Agent 完成分析，结论如下：\n"
+                + "- 分配对象：" + domainDesc(rr.route()) + "\n"
+                + "- 判定理由：" + (rr.reason() == null || rr.reason().isBlank() ? "（模型未返回理由，按问题关键词就近匹配）" : rr.reason()) + "\n"
+                + "- 车辆槽位：" + (rr.vehicle() == null || rr.vehicle().isBlank() ? "未指定（车队级查询，不需要单车锁定）" : rr.vehicle()) + "\n"
+                + "- 时间槽位：" + (rr.timeRange() == null || rr.timeRange().isBlank() ? "未指定（执行时取默认近 7 天）" : rr.timeRange() + "（执行时解析为日期区间）") + "\n"
+                + (hasHistory ? "- 指代继承：本次路由已结合最近对话历史确认上下文指向。\n" : "")
+                + "权限边界提醒：查询范围将自动限制在当前账号可见的车队内。\n");
     }
 
     /** 执行阶段思考：即将做什么 */
@@ -163,10 +244,14 @@ public class V2xCopilotAgent implements Agent {
         think(sink, "\n【开始执行】\n" + plan + "\n");
     }
 
-    /** 分析衔接：从数据到结论的推理起点（仅首次） */
-    private void thinkAnalyzeBridge(AguiFluxSink sink) {
-        think(sink, "\n【深度分析】\n"
-                + "数据已就绪，开始结合查询结果推理答案…\n");
+    /** 分析衔接：按取证进度区分文案（ReAct 首轮思考在工具前——规划路径；后续轮——基于证据推理） */
+    private void thinkAnalyzeBridge(AguiFluxSink sink, ToolResultBridge bridge) {
+        int n = bridge.receiptCount();
+        String head = n == 0
+                ? "分析模型开始第一轮推理：先规划取证路径（选哪些查询能力、参数怎么定），随后按计划调取数据。\n"
+                : "当前进度：已取证 " + n + " 次、累计 " + bridge.totalRows()
+                + " 行结果（均在账号车队权限范围内）。分析模型基于以上证据继续推理：核对时间口径与车辆范围 → 比较数值找显著项 → 组织成「结论 + 证据 + 建议」。\n";
+        think(sink, "\n【深度分析】\n" + head + "——以下为模型的实时推理流——\n");
     }
 
     /** 主编排流程：闲聊门栋 -> Supervisor 路由 -> 专家 / 异常 Workflow */
@@ -186,9 +271,10 @@ public class V2xCopilotAgent implements Agent {
                 ctx.tenantId(), input.threadId(), ctx.userId(), profileId);
         try {
             sink.emit(AgUiEvent.runStarted(input.runId(), input.threadId(), traceId));
-            // 全程思考流：理解 → 路由 → 执行 → 分析（GLM reasoning 续写）
+            // 全程思考流：理解 → 路由 → 执行 → 取证回执 → 分析（GLM reasoning 续写）
             sink.emit(AgUiEvent.of("THINKING_START", java.util.Map.of()));
-            thinkUnderstand(sink, input.question());
+            String tail = historyTail(history);
+            thinkUnderstand(sink, input.question(), tail);
 
             // 强制路由：用户通过界面指定工具（forwardedProps 仅影响路由选择，不参与鉴权）
             String forcedTool = forcedToolOf(input.forwardedProps());
@@ -210,7 +296,7 @@ public class V2xCopilotAgent implements Agent {
                     specialistRun(forcedDomain, history, ctx, sink, conclusion, input.runId(), forcedTool);
                 }
                 persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion, forcedTool, sink);
-                finishOk(sink, input, traceId, followUpsFor(routeTag));
+                finishOk(sink, input, traceId, followUpsFor(routeTag, null));
                 return;
             }
 
@@ -233,7 +319,7 @@ public class V2xCopilotAgent implements Agent {
             sink.emit(AgUiEvent.of("AGENT_ROUTE", Map.of(
                     "route", rr.route(), "reason", rr.reason() == null ? "" : rr.reason(),
                     "vehicle", rr.vehicle() == null ? "" : rr.vehicle())));
-            thinkRoute(sink, rr);
+            thinkRoute(sink, rr, tail != null && !tail.isBlank());
 
             if ("meta".equals(rr.route())) {
                 sink.emitText(metaReply(ctx));
@@ -246,7 +332,12 @@ public class V2xCopilotAgent implements Agent {
                 return;
             }
             if ("anomaly".equals(rr.route())) {
-                thinkExecute(sink, "启动异常探查工作流：并行取证告警明细 / 告警统计 / 行程 / 故障四路数据，再汇总得出异常解释");
+                thinkExecute(sink, "启动异常探查工作流，执行计划：\n"
+                        + "1. 锁定车辆与时间窗口（" + (rr.vehicle() == null ? "待确认" : rr.vehicle())
+                        + (rr.timeRange() == null ? " · 近 7 天" : " · " + rr.timeRange()) + "）\n"
+                        + "2. 并行取证三路数据：告警类型统计 / 故障明细 / 每日里程趋势\n"
+                        + "3. 三路证据交叉比对（告警聚集点 ↔ 故障部位 ↔ 里程突变日），定位异常根因\n"
+                        + "4. 流式输出异常解释报告（结论先行 + 证据引用 + 处置建议）");
                                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "anomaly_workflow")) {
                     rowCount = anomalyWorkflow(input, rr, ctx, sink, conclusion);
@@ -259,7 +350,11 @@ public class V2xCopilotAgent implements Agent {
                     case "mileage" -> SpecialistAgents.Domain.MILEAGE;
                     default -> SpecialistAgents.Domain.CROSS;
                 };
-                thinkExecute(sink, "交由 " + domain + " 专家 Agent 分析：将按需调用数据能力查询分析库，并基于结果推理结论");
+                thinkExecute(sink, "交由" + domainDesc(rr.route()) + "处理，执行计划：\n"
+                        + "1. 按需调用该领域的查询能力（参数自动带上车辆与时间槽位）\n"
+                        + "2. 每次查询完成后核对返回行数与数据要点\n"
+                        + "3. 证据充分后由分析模型推理结论，并按需生成可视化图表\n"
+                        + "4. 全程受账号车队权限约束，越界数据自动过滤");
                                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
                     specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
@@ -267,7 +362,7 @@ public class V2xCopilotAgent implements Agent {
             }
 
             persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion, null, sink);
-            finishOk(sink, input, traceId, followUpsFor(routeTag));
+            finishOk(sink, input, traceId, followUpsFor(routeTag, rr));
         } catch (CancelledException e) {
             status = "CANCELLED";
             log.info("copilot run {} cancelled", input.runId());
@@ -309,7 +404,7 @@ public class V2xCopilotAgent implements Agent {
         checkCancelled(runId);
         try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, model, forcedTool)) {
             agent.streamEvents(history)
-                    .doOnNext(ev -> translateAgentEvent(ev, sink, conclusion))
+                    .doOnNext(ev -> translateAgentEvent(ev, sink, conclusion, bridge))
                     .blockLast(Duration.ofSeconds(180));
         }
         checkCancelled(runId);
@@ -318,19 +413,19 @@ public class V2xCopilotAgent implements Agent {
 
     /** AgentScope 事件 -> 前端事件：文本增量直接流式转发（表格/图表由工具桥推送），思考块转 THINKING 帧 */
     private void translateAgentEvent(io.agentscope.core.event.AgentEvent ev, AguiFluxSink sink,
-                                     StringBuilder conclusion) {
+                                     StringBuilder conclusion, ToolResultBridge bridge) {
         if (ev instanceof TextBlockDeltaEvent t) {
             conclusion.append(t.getDelta());
             sink.emitText(t.getDelta());
         } else if (ev instanceof io.agentscope.core.event.ThinkingBlockStartEvent) {
             log.debug("copilot thinking block started");
             sink.emit(AgUiEvent.of("THINKING_START", Map.of()));
-            thinkAnalyzeBridge(sink);
+            thinkAnalyzeBridge(sink, bridge);
         } else if (ev instanceof io.agentscope.core.event.ThinkingBlockDeltaEvent d) {
             sink.emit(AgUiEvent.of("THINKING_DELTA",
                     Map.of("delta", d.getDelta() == null ? "" : d.getDelta())));
         } else if (ev instanceof io.agentscope.core.event.ThinkingBlockEndEvent) {
-            sink.emit(AgUiEvent.of("THINKING_END", Map.of()));
+            // 不发 THINKING_END：ReAct 多轮会有多个思考块，中途折叠会打断思考流展示；统一由 run() finally 收尾
         } else if (ev instanceof ExceedMaxItersEvent) {
             String note = "\n\n（分析过程较长，已基于目前数据给出结论）";
             conclusion.append(note);
@@ -342,7 +437,7 @@ public class V2xCopilotAgent implements Agent {
     private Integer anomalyWorkflow(RunOrchestrator.RunInput input, SupervisorRouter.RouteResult rr,
                                     PermissionContext ctx, AguiFluxSink sink, StringBuilder conclusion) {
         if (rr.vehicle() == null || rr.vehicle().isBlank()) {
-            sink.emitText("请告诉我要分析哪台车（车牌号或 VIN），例如：粤BD96880 最近怎么回事");
+            sink.emitText("请告诉我要分析哪台车（车牌号或 VIN），例如：粤M32543 最近怎么回事");
             return null;
         }
         List<Map<String, Object>> candidates = queries.resolveVehicles(rr.vehicle(), ctx);
@@ -352,11 +447,17 @@ public class V2xCopilotAgent implements Agent {
         }
         if (candidates.size() > 1) {
             StringBuilder sb = new StringBuilder("找到多台匹配车辆，请确认要分析哪一台：\n");
+            List<Map<String, Object>> options = new ArrayList<>();
             for (Map<String, Object> c : candidates) {
-                sb.append("- ").append(c.get("plate_no")).append("（")
-                        .append(c.get("fleet_name")).append("）\n");
+                String label = c.get("plate_no") + "（" + c.get("fleet_name") + "）";
+                sb.append("- ").append(label).append('\n');
+                options.add(Map.of("type", "select", "label", "分析 " + label));
             }
             sink.emitText(sb.toString());
+            // 澄清实体按钮：一键回填追问，免去打字
+            sink.emit(AgUiEvent.of("CLARIFY", Map.of(
+                    "question", "请选择要分析的车辆",
+                    "options", options)));
             return null;
         }
         String vin = String.valueOf(candidates.get(0).get("vin"));
@@ -577,20 +678,33 @@ public class V2xCopilotAgent implements Agent {
 
     private List<String> defaultFollowUps() {
         return List.of("近 7 天各类告警次数",
-                "粤BD96880 最近怎么回事",
+                "粤M32543 最近怎么回事",
                 "离线超 24 小时的车有哪些");
     }
 
-    private List<String> followUpsFor(String routeTag) {
+    /** 上下文追问：带本次路由的车辆/时间槽位生成可直接执行的细化建议 */
+    private List<String> followUpsFor(String routeTag, SupervisorRouter.RouteResult rr) {
         if (routeTag == null) {
             return defaultFollowUps();
         }
+        String veh = rr != null && rr.vehicle() != null && !rr.vehicle().isBlank()
+                ? rr.vehicle() : null;
         return switch (routeTag) {
-            case "alarm" -> List.of("看看告警明细", "车队告警对比一下", "换成近 30 天再看看");
-            case "fault" -> List.of("只看未恢复的故障", "按部位统计一下");
-            case "mileage" -> List.of("各车队里程对比", "看看充电统计");
-            case "vehicle" -> List.of("它的最后位置在哪", "离线超 24 小时的车有哪些");
-            case "anomaly" -> List.of("看看它的告警明细", "换成近 30 天再分析一次");
+            case "alarm" -> veh != null
+                    ? List.of("看 " + veh + " 的告警明细", veh + " 近 30 天告警再统计一次", "对 " + veh + " 做一次异常分析")
+                    : List.of("看告警明细", "车队告警对比一下", "换成近 30 天再看看");
+            case "fault" -> veh != null
+                    ? List.of("只看 " + veh + " 未恢复的故障", "按部位统计 " + veh + " 的故障")
+                    : List.of("只看未恢复的故障", "按部位统计一下");
+            case "mileage" -> veh != null
+                    ? List.of(veh + " 换成近 30 天再看", "对比 " + veh + " 所在车队与全网车均里程")
+                    : List.of("各车队里程对比", "看近 30 天趋势", "看看充电统计");
+            case "vehicle" -> veh != null
+                    ? List.of(veh + " 的最后位置在哪", veh + " 最近怎么回事")
+                    : List.of("离线超 24 小时的车有哪些", "在线车辆有多少");
+            case "anomaly" -> veh != null
+                    ? List.of("看 " + veh + " 的告警明细", veh + " 换成近 30 天再分析一次", "给 " + veh + " 生成处置任务卡")
+                    : List.of("看看告警明细", "换成近 30 天再分析一次");
             case "forced" -> List.of("换个时间范围再查一次", "切回智能路由继续追问");
             default -> defaultFollowUps();
         };
