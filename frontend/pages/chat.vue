@@ -451,7 +451,8 @@ onMounted(async () => {
 <style scoped>
 /* v3a 运营工作台三栏：会话 200px｜数据画布（≤400px）｜聊天室最右最宽；高度吃满视口（吃掉 .page 底衬） */
 .workbench {
-  display: grid; grid-template-columns: 200px minmax(0, 400px) minmax(0, 1fr);
+  /* 对话流收窄（340px），数据工作台加宽 */
+  display: grid; grid-template-columns: 200px minmax(0, 340px) minmax(0, 1fr);
   gap: 12px; align-items: stretch;
   height: calc(100vh - var(--topbar-h) - var(--topbar-gap));
   margin-top: 0px;
@@ -491,7 +492,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 1180px) {
-  .workbench { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); }
+  .workbench { grid-template-columns: minmax(0, 320px) minmax(0, 1fr); }
 }
 @media (max-width: 880px) {
   .workbench { grid-template-columns: minmax(0, 1fr); height: auto; margin-bottom: 0; }

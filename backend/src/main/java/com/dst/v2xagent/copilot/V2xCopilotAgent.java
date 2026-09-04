@@ -123,6 +123,52 @@ public class V2xCopilotAgent implements Agent {
         return sink.flux();
     }
 
+
+    // ==================== 思考流注入（全管线阶段决策透明化） ====================
+
+    /** 发送一段结构化思考（分节文案直接作为 THINKING 增量） */
+    private void think(AguiFluxSink sink, String text) {
+        sink.emit(AgUiEvent.of("THINKING_DELTA", java.util.Map.of("delta", text)));
+    }
+
+    /** 理解阶段思考：用户问题 + 关键信息识别 */
+    private void thinkUnderstand(AguiFluxSink sink, String question) {
+        think(sink, "\n【理解问题】\n"
+                + "用户提问：" + question + "\n"
+                + "正在识别关键信息（车辆、时间范围、意图），并判断需要哪类数据能力…\n");
+    }
+
+    /** 路由阶段思考：路由结果 + 理由 + 下一步 */
+    private void thinkRoute(AguiFluxSink sink, SupervisorRouter.RouteResult rr) {
+        String domainCn = switch (rr.route() == null ? "" : rr.route()) {
+            case "vehicle" -> "车辆状态专家";
+            case "alarm" -> "告警分析专家";
+            case "fault" -> "故障诊断专家";
+            case "mileage" -> "里程分析专家";
+            case "anomaly" -> "异常探查工作流";
+            case "cross" -> "跨域综合专家";
+            case "meta" -> "平台信息查询";
+            case "chat" -> "闻聊引导";
+            default -> rr.route();
+        };
+        think(sink, "\n【路由决策】\n"
+                + "问题类型：" + domainCn + "\n"
+                + "判定理由：" + (rr.reason() == null || rr.reason().isBlank() ? "（未提供）" : rr.reason()) + "\n"
+                + "识别到车辆：" + (rr.vehicle() == null || rr.vehicle().isBlank() ? "未指定" : rr.vehicle()) + "\n"
+                + "时间范围：" + (rr.timeRange() == null || rr.timeRange().isBlank() ? "未指定（将使用默认）" : rr.timeRange()) + "\n");
+    }
+
+    /** 执行阶段思考：即将做什么 */
+    private void thinkExecute(AguiFluxSink sink, String plan) {
+        think(sink, "\n【开始执行】\n" + plan + "\n");
+    }
+
+    /** 分析衔接：从数据到结论的推理起点（仅首次） */
+    private void thinkAnalyzeBridge(AguiFluxSink sink) {
+        think(sink, "\n【深度分析】\n"
+                + "数据已就绪，开始结合查询结果推理答案…\n");
+    }
+
     /** 主编排流程：闲聊门栋 -> Supervisor 路由 -> 专家 / 异常 Workflow */
     private void run(RunOrchestrator.RunInput input, List<Msg> history,
                      PermissionContext ctx, AguiFluxSink sink) {
@@ -140,6 +186,9 @@ public class V2xCopilotAgent implements Agent {
                 ctx.tenantId(), input.threadId(), ctx.userId(), profileId);
         try {
             sink.emit(AgUiEvent.runStarted(input.runId(), input.threadId(), traceId));
+            // 全程思考流：理解 → 路由 → 执行 → 分析（GLM reasoning 续写）
+            sink.emit(AgUiEvent.of("THINKING_START", java.util.Map.of()));
+            thinkUnderstand(sink, input.question());
 
             // 强制路由：用户通过界面指定工具（forwardedProps 仅影响路由选择，不参与鉴权）
             String forcedTool = forcedToolOf(input.forwardedProps());
@@ -184,6 +233,7 @@ public class V2xCopilotAgent implements Agent {
             sink.emit(AgUiEvent.of("AGENT_ROUTE", Map.of(
                     "route", rr.route(), "reason", rr.reason() == null ? "" : rr.reason(),
                     "vehicle", rr.vehicle() == null ? "" : rr.vehicle())));
+            thinkRoute(sink, rr);
 
             if ("meta".equals(rr.route())) {
                 sink.emitText(metaReply(ctx));
@@ -196,7 +246,8 @@ public class V2xCopilotAgent implements Agent {
                 return;
             }
             if ("anomaly".equals(rr.route())) {
-                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                thinkExecute(sink, "启动异常探查工作流：并行取证告警明细 / 告警统计 / 行程 / 故障四路数据，再汇总得出异常解释");
+                                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "anomaly_workflow")) {
                     rowCount = anomalyWorkflow(input, rr, ctx, sink, conclusion);
                 }
@@ -208,7 +259,8 @@ public class V2xCopilotAgent implements Agent {
                     case "mileage" -> SpecialistAgents.Domain.MILEAGE;
                     default -> SpecialistAgents.Domain.CROSS;
                 };
-                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                thinkExecute(sink, "交由 " + domain + " 专家 Agent 分析：将按需调用数据能力查询分析库，并基于结果推理结论");
+                                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
                     specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
                 }
@@ -235,6 +287,8 @@ public class V2xCopilotAgent implements Agent {
             }
             com.dst.v2xagent.observability.trace.TraceContext.end();
             cancelFlags.remove(input.runId());
+            // 保平：任何路径退出都关闭思考流（前端依赖 END 折叠）
+            sink.emit(AgUiEvent.of("THINKING_END", java.util.Map.of()));
             runtime.audit().record(ctx, input, traceId,
                     routeTag == null ? null : "copilot:" + routeTag,
                     null, status, errorCode, failedStage,
@@ -271,6 +325,7 @@ public class V2xCopilotAgent implements Agent {
         } else if (ev instanceof io.agentscope.core.event.ThinkingBlockStartEvent) {
             log.debug("copilot thinking block started");
             sink.emit(AgUiEvent.of("THINKING_START", Map.of()));
+            thinkAnalyzeBridge(sink);
         } else if (ev instanceof io.agentscope.core.event.ThinkingBlockDeltaEvent d) {
             sink.emit(AgUiEvent.of("THINKING_DELTA",
                     Map.of("delta", d.getDelta() == null ? "" : d.getDelta())));

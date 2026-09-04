@@ -20,7 +20,8 @@ public class LlmProperties {
 
     private Map<String, Provider> providers = new HashMap<>();
 
-    private Stage extract = new Stage(2500, 1, 0.1);
+    // 抽取/路由阶段：GLM 生成需 ~8-30s，2.5s 必超时导致路由永远 fallback
+    private Stage extract = new Stage(30_000, 1, 0.1);
     private Stage conclude = new Stage(8000, 0, 0.3);
 
     @Data

@@ -17,7 +17,15 @@
         {{ thinkingActive ? '正在思考…' : '思考过程（' + thinkingText.length + ' 字）' }}
         <span class="think-caret" :class="{ up: thinkOpen }">▾</span>
       </button>
-      <div v-show="thinkOpen" class="think-body">{{ thinkingText }}</div>
+      <div v-show="thinkOpen" ref="thinkBodyRef" class="think-body">
+        <template v-for="(seg, i) in thinkSegments" :key="i">
+          <div v-if="seg.kind === 'title'" class="seg-title">
+            <span class="seg-icon">{{ seg.icon }}</span>{{ seg.text }}
+          </div>
+          <div v-else-if="seg.kind === 'gap'" class="seg-gap"></div>
+          <div v-else class="seg-line">{{ seg.text }}</div>
+        </template>
+      </div>
     </div>
 
     <div v-if="collapsed" class="collapsed-summary" @click="collapsed = false">
@@ -102,6 +110,32 @@ const hasResult = computed(() => !!result.value)
 // 思考折叠：流式中自动展开，结束自动折叠
 const thinkOpen = ref(false)
 watch(thinkingActive, (v) => { thinkOpen.value = !!v })
+
+const thinkBodyRef = ref(null)
+// 思考分节：【理解问题】等标题行高亮，其余为正文行
+const SEG_ICONS = {
+  '理解问题': '🔍',
+  '路由决策': '📍',
+  '开始执行': '⚡',
+  '深度分析': '🧠'
+}
+const thinkSegments = computed(() => {
+  const out = []
+  for (const raw of (thinkingText.value || '').split('\n')) {
+    const line = raw.trim()
+    if (!line) { out.push({ kind: 'gap' }); continue }
+    const m = line.match(/^【(.+?)】$/)
+    if (m) out.push({ kind: 'title', text: m[1], icon: SEG_ICONS[m[1]] || '•' })
+    else out.push({ kind: 'line', text: line })
+  }
+  return out
+})
+// 流式中自动跟随滚动到最新思考
+watch(thinkingText, () => {
+  if (thinkingActive.value && thinkBodyRef.value) {
+    requestAnimationFrame(() => { thinkBodyRef.value.scrollTop = thinkBodyRef.value.scrollHeight })
+  }
+})
 
 // 消息折叠：完成且长回答时可收起为摘要行
 const collapsed = ref(false)
@@ -207,9 +241,19 @@ async function createTaskCard() {
 .think-caret { margin-left: auto; transition: transform .15s; }
 .think-caret.up { transform: rotate(180deg); }
 .think-body {
-  max-height: 160px; overflow-y: auto; padding: 4px 14px 10px;
-  font-size: 12px; line-height: 1.8; color: var(--text-3);
-  white-space: pre-wrap; word-break: break-word;
+  max-height: 260px; overflow-y: auto; padding: 2px 14px 12px;
+}
+.seg-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--green-deep, #0b6e55);
+  letter-spacing: 1px; margin: 10px 0 4px;
+}
+.seg-title:first-child { margin-top: 2px; }
+.seg-icon { font-size: 13px; }
+.seg-gap { height: 4px; }
+.seg-line {
+  font-size: 12.5px; line-height: 1.85; color: var(--text-2, #475569);
+  white-space: pre-wrap; word-break: break-word; padding-left: 19px;
 }
 /* 折叠态摘要 */
 .collapsed-summary {
