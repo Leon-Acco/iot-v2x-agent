@@ -344,7 +344,7 @@ public class V2xCopilotAgent implements Agent {
                 SpecialistAgents.Domain forcedDomain = CopilotToolCatalog.domainOf(forcedTool);
                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "forced:" + forcedTool)) {
-                    specialistRun(forcedDomain, history, ctx, sink, conclusion, input.runId(), forcedTool);
+                    specialistRun(forcedDomain, history, ctx, sink, conclusion, input.runId(), forcedTool, sessionId);
                 }
                 persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion, forcedTool, sink);
                 finishOk(sink, input, traceId, followUpsFor(routeTag, null));
@@ -364,7 +364,14 @@ public class V2xCopilotAgent implements Agent {
             String fast = fastPathRoute(input.question());
             SupervisorRouter.RouteResult rr;
             if (fast != null) {
-                rr = new SupervisorRouter.RouteResult(fast, null, null, "关键词快路由（命中唯一领域词，跳过模型路由）");
+                // 快路由跳过模型抽取，槽位用正则确定性回填（车牌/VIN/时间词），
+                // 保持与 LLM 路由相同的 RouteResult 契约（anomalyWorkflow 强依赖 vehicle 槽位）
+                String vehicle = findFirst(PLATE_P, input.question());
+                if (vehicle == null) {
+                    vehicle = findFirst(VIN_P, input.question());
+                }
+                String timeWord = findFirst(TIME_P, input.question());
+                rr = new SupervisorRouter.RouteResult(fast, vehicle, timeWord, "关键词快路由（命中唯一领域词，跳过模型路由）");
             } else {
                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "route")) {
@@ -419,7 +426,7 @@ public class V2xCopilotAgent implements Agent {
                 ToolResultBridge spBridge;
                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
-                    spBridge = specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
+                    spBridge = specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null, sessionId);
                 }
                 // 路由逃生门：专家既没调工具也没说出像样结论（或查了但全空且没解释），
                 // 转 cross 跨域专家综合补救一次——打破「一次路由定生死」。cross 自身不再升级（防死循环）。
@@ -438,7 +445,7 @@ public class V2xCopilotAgent implements Agent {
                     try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                                  com.dst.v2xagent.observability.trace.TraceContext.span("agent", "escalate:cross")) {
                         specialistRun(SpecialistAgents.Domain.CROSS, escHistory, ctx, sink,
-                                conclusion, input.runId(), null);
+                                conclusion, input.runId(), null, sessionId);
                     }
                 }
             }
@@ -477,9 +484,11 @@ public class V2xCopilotAgent implements Agent {
     /** 专家路径：构建领域 ReActAgent，驱动事件流并翻译为 AG-UI 事件；返回本轮流量的工具桥（逃生门判断用） */
     private ToolResultBridge specialistRun(SpecialistAgents.Domain domain, List<Msg> history,
                                            PermissionContext ctx, AguiFluxSink sink,
-                                           StringBuilder conclusion, String runId, String forcedTool) {
+                                           StringBuilder conclusion, String runId, String forcedTool,
+                                           String sessionId) {
         ToolResultBridge bridge = new ToolResultBridge(sink, runtime.charts());
-        CopilotTools tools = new CopilotTools(queries, ctx, bridge, capabilityRegistry);
+        CopilotTools tools = new CopilotTools(queries, ctx, bridge, capabilityRegistry,
+                runtime.taskService(), runtime.taskScheduler(), sessionId);
         VisualizationTools vizTools = new VisualizationTools(bridge);
         SchemaTools schemaTools = new SchemaTools(runtime.jdbc());
         Model model = AgentScopeModels.concludeModel(runtime.llm().activeProvider());
@@ -521,16 +530,16 @@ public class V2xCopilotAgent implements Agent {
     private Integer anomalyWorkflow(RunOrchestrator.RunInput input, SupervisorRouter.RouteResult rr,
                                     PermissionContext ctx, AguiFluxSink sink, StringBuilder conclusion) {
         if (rr.vehicle() == null || rr.vehicle().isBlank()) {
-            sink.emitText("想给车车做体检，得先告诉我看哪一台呀～报个车牌号或 VIN 就行，比如：「粤C10003 最近怎么回事」");
+            sink.emitText("进行单车综合分析需要指定车辆，请提供车牌号或 VIN，例如：「分析粤C10003近7天运行情况」");
             return null;
         }
         List<Map<String, Object>> candidates = queries.resolveVehicles(rr.vehicle(), ctx);
         if (candidates.isEmpty()) {
-            sink.emitText("哎呀，我把车队翻了个遍也没找到「" + rr.vehicle() + "」这台车…别慌，帮我确认下车牌号或 VIN 有没有输错？");
+            sink.emitText("未找到车辆「" + rr.vehicle() + "」，请确认车牌号或 VIN 是否正确。");
             return null;
         }
         if (candidates.size() > 1) {
-            StringBuilder sb = new StringBuilder("嚯，一下匹配到好几台车车！要给哪一台做体检呢：\n");
+            StringBuilder sb = new StringBuilder("匹配到多台车辆，请选择要分析的车辆：\n");
             List<Map<String, Object>> options = new ArrayList<>();
             for (Map<String, Object> c : candidates) {
                 String label = c.get("plate_no") + "（" + c.get("fleet_name") + "）";
@@ -553,11 +562,11 @@ public class V2xCopilotAgent implements Agent {
         ToolResultBridge bridge = new ToolResultBridge(sink, runtime.charts());
         Map<String, Object> args = Map.of("vehicle", plate, "time_range_display", range.display());
         SimQueries.Outcome alarmOc = queries.alarmsByType(range, vin, ctx);
-        bridge.emitOutcome(alarmOc, args);
+        bridge.emitOutcome(alarmOc, args, "count_alarms_by_type");
         SimQueries.Outcome faultOc = queries.faultList(range, vin, false, ctx);
-        bridge.emitOutcome(faultOc, args);
+        bridge.emitOutcome(faultOc, args, "list_faults");
         SimQueries.Outcome mileOc = queries.mileageDaily(range, vin, ctx);
-        bridge.emitOutcome(mileOc, args);
+        bridge.emitOutcome(mileOc, args, "query_mileage_daily");
         sink.emit(AgUiEvent.stepFinished("invoke"));
 
         sink.emit(AgUiEvent.stepStarted("conclude", "正在生成异常分析报告"));
@@ -584,7 +593,7 @@ public class V2xCopilotAgent implements Agent {
     /** 平台元信息问答（确定性内容，不调模型） */
     private String metaReply(PermissionContext ctx) {
         StringBuilder sb = new StringBuilder();
-        sb.append("嘿嘿，问到我的老底啦～我是从你们车队数据里「长」出来的小精灵，对每一台车车都了如指掌！别慌，身后还有一整支专家天团帮我捋数据：\n\n");
+        sb.append("我是车联网平台的数据分析 Agent，基于车队数据提供查询与分析服务，按领域分工如下：\n\n");
         sb.append("**数据源**：").append(queries.sourceName())
                 .append("，数据基准日 ").append(queries.baseDate())
                 .append("。\n");
@@ -596,7 +605,7 @@ public class V2xCopilotAgent implements Agent {
         sb.append("- 故障专家：部位统计 / 明细\n");
         sb.append("- 里程充电专家：车队里程对比 / 每日里程 / 充电统计\n");
         sb.append("- 异常分析 Workflow：某台车的多源取证与报告\n\n");
-        sb.append("每次查询表格和图表都会自动摆好，你只管问～");
+        sb.append("查询结果的表格与图表会自动展示，直接提问即可。");
         return sb.toString();
     }
 
@@ -608,14 +617,14 @@ public class V2xCopilotAgent implements Agent {
             + "3. 给出处置建议（是否需要检修、是否建议停运）；\n"
             + "4. 数据不足时明确说明，不编造；\n"
             + "5. 表格与图表已展示给用户，正文不重复罗列数据；\n"
-            + "6. 人设与语气——你是从车联网数据里「长」出来的小精灵：轻快口语化、偶尔用 emoji（最多 1~2 个）、"
-            + "把数据当「车车的故事」讲比喻；发现异常先「哎呀」一下立刻给方案，可用口头禅「别慌，我帮你捋捋！」；"
-            + "红线：活泼归活泼，所有数字必须来自三路取证数据，一个不许编。";
+            + "6. 语气与风格——专业、客观、书面化：禁用 emoji、感叹号堆砌、拟人比喻与口语化表达；"
+            + "发现异常直接给出判断与处置建议，不铺垫、不渲染；"
+            + "红线：所有数字必须来自三路取证数据，一个不许编。";
 
     private static final String GUIDE_REPLY =
-            "嘿～我是车联网小精灵，从你们车队的每一行数据里「长」出来的！🚗✨\n"
-            + "车辆状态、告警统计、故障明细、里程充电都能问，也可以让我给某台车做一次全面体检。\n"
-            + "刚刚瞟了一眼数据，你的车车们都在等我讲它们的故事呢～试试：「近 7 天各类告警次数」「粤C10003 最近怎么回事」";
+            "我是车联网平台的数据分析 Agent，可提供车辆状态、告警统计、故障明细、里程与充电数据的查询与分析，"
+            + "也支持单车综合异常分析。\n"
+            + "可参考的提问方式：「近 7 天各类告警次数」「分析粤C10003近7天运行情况」";
 
     private static final java.util.Set<String> CHITCHAT = java.util.Set.of(
             "你好", "您好", "hi", "hello", "hey",
@@ -767,8 +776,8 @@ public class V2xCopilotAgent implements Agent {
 
     private List<String> defaultFollowUps() {
         return List.of("近 7 天各类告警次数",
-                "粤C10003 最近怎么回事",
-                "离线超 24 小时的车有哪些");
+                "分析粤C10003近期运行情况",
+                "查询离线超 24 小时的车辆清单");
     }
 
     /** 上下文追问：带本次路由的车辆/时间槽位生成可直接执行的细化建议 */
@@ -780,21 +789,21 @@ public class V2xCopilotAgent implements Agent {
                 ? rr.vehicle() : null;
         return switch (routeTag) {
             case "alarm" -> veh != null
-                    ? List.of("看 " + veh + " 的告警明细", veh + " 近 30 天告警再统计一次", "对 " + veh + " 做一次异常分析")
-                    : List.of("看告警明细", "车队告警对比一下", "换成近 30 天再看看");
+                    ? List.of("查询" + veh + "的告警明细", "统计" + veh + "近 30 天告警", "对" + veh + "进行异常分析")
+                    : List.of("查询告警明细", "车队告警对比", "查看近 30 天告警统计");
             case "fault" -> veh != null
-                    ? List.of("只看 " + veh + " 未恢复的故障", "按部位统计 " + veh + " 的故障")
-                    : List.of("只看未恢复的故障", "按部位统计一下");
+                    ? List.of("查询" + veh + "未恢复的故障", "按部位统计" + veh + "的故障")
+                    : List.of("查询未恢复的故障", "按部位统计故障");
             case "mileage" -> veh != null
-                    ? List.of(veh + " 换成近 30 天再看", "对比 " + veh + " 所在车队与全网车均里程")
-                    : List.of("各车队里程对比", "看近 30 天趋势", "看看充电统计");
+                    ? List.of("查询" + veh + "近 30 天里程趋势", "对比" + veh + "所在车队与全网车均里程")
+                    : List.of("各车队里程对比", "查看近 30 天里程趋势", "查看充电统计");
             case "vehicle" -> veh != null
-                    ? List.of(veh + " 的最后位置在哪", veh + " 最近怎么回事")
-                    : List.of("离线超 24 小时的车有哪些", "在线车辆有多少");
+                    ? List.of("查询" + veh + "的最后位置", "分析" + veh + "近期运行情况")
+                    : List.of("查询离线超 24 小时的车辆清单", "统计当前在线车辆数");
             case "anomaly" -> veh != null
-                    ? List.of("看 " + veh + " 的告警明细", veh + " 换成近 30 天再分析一次", "给 " + veh + " 生成处置任务卡")
-                    : List.of("看看告警明细", "换成近 30 天再分析一次");
-            case "forced" -> List.of("换个时间范围再查一次", "切回智能路由继续追问");
+                    ? List.of("查询" + veh + "的告警明细", "分析" + veh + "近 30 天运行情况", "为" + veh + "生成处置任务卡")
+                    : List.of("查询告警明细", "分析近 30 天运行情况");
+            case "forced" -> List.of("调整时间范围重新查询", "继续提问");
             default -> defaultFollowUps();
         };
     }

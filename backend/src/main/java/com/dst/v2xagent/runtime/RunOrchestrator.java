@@ -93,7 +93,7 @@ public class RunOrchestrator {
                 sink.emitText(smallTalk);
                 sink.emit(AgUiEvent.of("RUN_FINISHED", Map.of("runId", input.runId(),
                         "followUps", java.util.List.of(
-                                "今天车队在线率怎么样",
+                                "查询今日车队在线率",
                                 "近 7 天各类型告警次数",
                                 "各车队近 7 天里程对比"))));
                 status = "SUCCESS";
@@ -103,15 +103,15 @@ public class RunOrchestrator {
             sink.emit(AgUiEvent.stepStarted("understand", "正在理解你的问题"));
             checkCancelled(input.runId());
             ShortTermMemory.QueryIntent prevIntent = shortTermMemory.loadIntent(sessionId).orElse(null);
+            // 候选池：scope 预过滤 + profile 域裁剪前移进选择器（避免域外高分能力挤占名额）
             List<CapabilityDefinition> candidates = selector.select(
-                    input.question(), ctx, prevIntent != null ? prevIntent.capabilityId() : null);
-            // profile 域裁剪
-            candidates = candidates.stream()
-                    .filter(c -> profile.getCapabilityDomains().isEmpty() || profile.getCapabilityDomains().contains(c.getDomain()))
-                    .toList();
+                    input.question(), ctx, profile.getCapabilityDomains(),
+                    prevIntent != null ? prevIntent.capabilityId() : null);
 
             CapabilitySelection selection = llmClient.extract(input.question(), candidates);
             selection = inheritFromContext(selection, prevIntent, input.question());
+            // 路由决策思考：展示 function calling 的能力选择过程
+            emitRouteThinking(sink, candidates.size(), selection);
             sink.emit(AgUiEvent.stepFinished("understand"));
 
             // 判定（纯 Java 决策表，不交给模型自由决定）
@@ -189,7 +189,9 @@ public class RunOrchestrator {
                             "chartType", chart.chartType(),
                             "spec", chart.spec(),
                             "chartAlternatives", chart.chartAlternatives(),
-                            "notes", chart.notes())));
+                            "notes", chart.notes(),
+                            "capabilityId", chartDef.getId(),
+                            "capabilityDisplay", chartDef.getDisplay())));
                 }
                 sink.emit(AgUiEvent.stepFinished("invoke"));
 
@@ -209,10 +211,11 @@ public class RunOrchestrator {
                 shortTermMemory.saveIntent(sessionId, intent);
                 sink.emit(AgUiEvent.of("RUN_FINISHED", Map.of(
                         "runId", input.runId(), "traceId", traceId,
-                        "followUps", java.util.List.of("换成上周再看看", "那前天呢"))));
+                        "followUps", java.util.List.of("查看上一周期数据", "查询前天数据"))));
                 String orchParamsJson = mapper.writeValueAsString(selection.params());
                 sessionStore.appendTurn(ctx.tenantId(), sessionId, input.question(), def.getId(),
-                        orchParamsJson, rowCount, conclusion.toString(), summarize(conclusion.toString()));
+                        orchParamsJson, rowCount, conclusion.toString(), summarize(conclusion.toString()),
+                        sink.snapshot());
                 return;
             }
 
@@ -226,13 +229,15 @@ public class RunOrchestrator {
             sink.emit(AgUiEvent.of("TOOL_CALL_RESULT", tablePayload(def, table)));
             sink.emit(AgUiEvent.stepFinished("invoke"));
 
-            // ── Render：出图（后端只出 ChartSpec）──
+            // ── Render：出图（后端只出 ChartSpec，带能力标注）──
             RenderChartTool.ChartSpec chart = renderChartTool.render(def, table);
             sink.emit(AgUiEvent.of("CHART_SPEC", Map.of(
                     "chartType", chart.chartType(),
                     "spec", chart.spec(),
                     "chartAlternatives", chart.chartAlternatives(),
-                    "notes", chart.notes())));
+                    "notes", chart.notes(),
+                    "capabilityId", def.getId(),
+                    "capabilityDisplay", def.getDisplay())));
 
             // ── Conclude：结论生成（流式，只基于返回数据）──
             sink.emit(AgUiEvent.stepStarted("conclude", "正在生成结论"));
@@ -254,7 +259,8 @@ public class RunOrchestrator {
 
             String paramsJson = mapper.writeValueAsString(selection.params());
             sessionStore.appendTurn(ctx.tenantId(), sessionId, input.question(), def.getId(),
-                    paramsJson, rowCount, conclusion.toString(), summarize(conclusion.toString()));
+                    paramsJson, rowCount, conclusion.toString(), summarize(conclusion.toString()),
+                    sink.snapshot());
 
         } catch (CancelledException e) {
             status = "CANCELLED";
@@ -313,9 +319,9 @@ public class RunOrchestrator {
                 params.put("time_range", label);
                 options.add(Map.of("label", label, "capabilityId", selection.capabilityId(), "params", params));
             }
-            sink.emit(AgUiEvent.clarify("你想看哪个时间范围？", options));
+            sink.emit(AgUiEvent.clarify("请选择时间范围：", options));
         } else if (selection.missing().contains("vehicle")) {
-            sink.emit(AgUiEvent.clarify("请告诉我要查哪台车（车牌或 VIN）：", List.of(
+            sink.emit(AgUiEvent.clarify("请提供车牌号或 VIN：", List.of(
                     Map.of("label", "输入车牌/VIN", "type", "input", "capabilityId", selection.capabilityId(),
                             "params", selection.params()))));
         } else {
@@ -350,15 +356,15 @@ public class RunOrchestrator {
     private List<String> buildFollowUps(CapabilityDefinition def, CapabilitySelection selection) {
         List<String> ups = new ArrayList<>();
         if (selection.params().containsKey("time_range")) {
-            ups.add("换成上周再看看");
-            ups.add("那前天呢");
+            ups.add("查看上一周期数据");
+            ups.add("查询前天数据");
         }
         switch (def.getId()) {
-            case "alarm_count_by_type" -> ups.add("看看告警明细");
-            case "alarm_list" -> ups.add("按类型统计一下");
-            case "mileage_daily" -> ups.add("各车队对比一下");
-            case "mileage_by_fleet" -> ups.add("看看每日里程趋势");
-            case "vehicle_online_status" -> ups.add("它的最后位置在哪");
+            case "alarm_count_by_type" -> ups.add("查看告警明细");
+            case "alarm_list" -> ups.add("按告警类型统计");
+            case "mileage_daily" -> ups.add("各车队里程对比");
+            case "mileage_by_fleet" -> ups.add("查看每日里程趋势");
+            case "vehicle_online_status" -> ups.add("查询该车辆最后位置");
             default -> {}
         }
         return ups.stream().limit(3).toList();
@@ -375,7 +381,7 @@ public class RunOrchestrator {
             "你会什么", "帮助", "help");
 
     private static final String GUIDE_REPLY =
-            "你好！我是设备运营 Agent。可以问我车辆在线率、告警统计、里程充电等数据问题，也可以直接让我生成图表。试试下面的问题：";
+            "你好，我是设备运营 Agent，可提供车辆在线率、告警统计、里程与充电等数据查询与分析，并支持图表生成。你可以直接提问，或参考以下问题：";
 
     private String smallTalkReply(String question) {
         if (question == null) {
@@ -386,6 +392,35 @@ public class RunOrchestrator {
             return GUIDE_REPLY;
         }
         return CHITCHAT.contains(t) ? GUIDE_REPLY : null;
+    }
+
+    /** 路由决策思考帧：候选规模 / 选择能力 / 置信度 / 抽取参数 / 决策表校验（function calling 决策过程透明化） */
+    private void emitRouteThinking(RunEventSink sink, int candidateCount, CapabilitySelection selection) {
+        StringBuilder sb = new StringBuilder("\n【路由决策】\n");
+        sb.append("· 候选能力 ").append(candidateCount).append(" 个（已按权限与领域过滤）\n");
+        if (selection.capabilityId() == null) {
+            sb.append("· 判定：问题与候选能力不匹配\n· 结果：拒答，已记录到未覆盖问题榜\n");
+        } else {
+            sb.append("· 选择能力：").append(selection.capabilityId()).append("\n");
+            sb.append("· 置信度：").append(String.format("%.2f", selection.confidence())).append("\n");
+            if (!selection.params().isEmpty()) {
+                sb.append("· 抽取参数：");
+                selection.params().forEach((k, v) -> sb.append(k).append("=").append(v).append("，"));
+                sb.setLength(sb.length() - 1);
+                sb.append("\n");
+            }
+            if (selection.confidence() < 0.45) {
+                sb.append("· 决策表校验：置信度低于 0.45，拒答并记录\n");
+            } else if (!selection.missing().isEmpty()) {
+                sb.append("· 决策表校验：缺少必填参数（").append(String.join("、", selection.missing()))
+                        .append("），转入澄清\n");
+            } else {
+                sb.append("· 决策表校验：通过（置信度达标）\n");
+            }
+        }
+        sink.emit(AgUiEvent.of("THINKING_START", Map.of("phase", "start")));
+        sink.emit(AgUiEvent.of("THINKING_DELTA", Map.of("phase", "delta", "delta", sb.toString())));
+        sink.emit(AgUiEvent.of("THINKING_END", Map.of("phase", "end")));
     }
 
     /** 回显参数：归一化后的参数 + 解析出的绝对时间区间 */
@@ -403,10 +438,11 @@ public class RunOrchestrator {
         return display;
     }
 
-    /** 表格载荷：columns（含语义/单位/对齐）+ rows + freshness + 执行统计 */
+    /** 表格载荷：columns（含语义/单位/对齐）+ rows + freshness + 执行统计（带能力标注） */
     private Map<String, Object> tablePayload(CapabilityDefinition def, TableResult table) {
         Map<String, Object> p = new LinkedHashMap<>();
         p.put("capabilityId", def.getId());
+        p.put("capabilityDisplay", def.getDisplay());
         p.put("columns", table.columns());
         p.put("rows", table.rows().stream().map(r -> {
             List<Object> row = new ArrayList<>();

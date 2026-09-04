@@ -22,11 +22,21 @@ export function useAguiStream() {
   let flushScheduled = false
   let pendingThink = ''
   let thinkFlushScheduled = false
-  // 可视化收集钩子：页面层注入，用于把新图累积进会话级工作台
-  let vizHook = null
+  // 产物收集钩子：页面层注入，用于把会话内产物（result/chart/viz）按轮次累积进工作台流水账
+  let artifactHook = null
 
-  function setVizHook(cb) {
-    vizHook = typeof cb === 'function' ? cb : null
+  function setArtifactHook(cb) {
+    artifactHook = typeof cb === 'function' ? cb : null
+  }
+
+  function notifyArtifact(kind, payload, tool) {
+    if (artifactHook) {
+      artifactHook({
+        kind,
+        payload,
+        tool: tool ? { id: tool.id, name: tool.name, toolName: tool.toolName || null } : null
+      })
+    }
   }
 
   function reset() {
@@ -94,6 +104,7 @@ export function useAguiStream() {
         tools.value.push({
           id: payload.capabilityId,
           name: payload.displayName || payload.capabilityId,
+          toolName: payload.toolName || null,
           status: 'running',
           args: null,
           summary: '',
@@ -116,6 +127,8 @@ export function useAguiStream() {
           }
         }
         if (payload && payload.columns) result.value = payload
+        // 产物钩子：查询结果表（带能力标注）
+        if (payload && payload.columns) notifyArtifact('result', payload, t)
         break
       }
       case 'TEXT_MESSAGE_CONTENT':
@@ -164,13 +177,15 @@ export function useAguiStream() {
         // UI Schema frame: inline visualization rendered by VisualizationRenderer
         if (payload && payload.type === 'visualization') {
           visualizations.value.push(payload)
-          // 会话级数据工作台钩子：新图同步收集（同 key 刷新、异 key 追加）
-          if (vizHook) vizHook(payload)
+          // 产物钩子：可视化卡（payload.tool 为生成工具标注）
+          notifyArtifact('viz', payload, lastTool())
         }
         break
       case 'CHART_SPEC':
         // 图表规格帧：合并进 result，供 ChartPanel 渲染
         result.value = Object.assign({}, result.value || {}, { chart: payload })
+        // 产物钩子：结果图表（帧上带 capabilityId/capabilityDisplay 标注）
+        notifyArtifact('chart', payload, lastTool())
         break
       case 'CLARIFY':
         // 澄清帧：把问题当回答展示，选项交给前端渲染
@@ -251,6 +266,6 @@ export function useAguiStream() {
     clarify, followUpSuggestions, visualizations, traceSteps,
     thinkingText, thinkingActive,
     toolCallCount, isRunning,
-    start, cancel, rerun, rate, onEvent, setVizHook
+    start, cancel, rerun, rate, onEvent, setArtifactHook
   }
 }

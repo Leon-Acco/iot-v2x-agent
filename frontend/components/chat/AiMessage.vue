@@ -56,6 +56,13 @@
       <TaskCardInline v-if="taskCard" :id="taskCard.id" :title="taskCard.title" />
       <div v-else-if="taskCardError" class="tc-error">{{ taskCardError }}</div>
 
+      <!-- 存为任务成功提示：内联轻提示（不跳页） -->
+      <div v-if="taskSaved" class="task-saved-tip">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        已存为可执行任务，可在任务中心一键重跑 / 定时执行
+        <NuxtLink class="saved-link" to="/tasks">去任务中心 →</NuxtLink>
+      </div>
+
       <div v-if="clarifyOptions.length" class="clarify-row">
         <button v-for="(o, i) in clarifyOptions" :key="i" class="chip" @click="$emit('clarify', o)">{{ o.label }}</button>
       </div>
@@ -67,7 +74,7 @@
 
       <div v-if="isDone" class="ai-footer">
         <div class="pill-row">
-          <span v-if="capabilityName" class="pill cap-pill" :title="'调用能力：' + capabilityName">{{ capabilityName }}</span>
+          <span v-for="name in capabilityNames" :key="name" class="pill cap-pill" :title="'调用能力：' + name">{{ name }}</span>
           <span v-if="toolCallCount" class="pill">{{ toolCallCount }} 次工具调用</span>
           <span v-if="rowCount != null" class="pill">{{ rowCount }} 行数据</span>
           <span v-if="elapsedMs != null" class="pill">耗时 {{ elapsedMs }}ms</span>
@@ -83,6 +90,9 @@
           <button v-if="hasResult && !taskCard" class="icon-btn" title="生成任务卡" @click="createTaskCard">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
           </button>
+          <button v-if="hasResult" class="icon-btn" :class="{ voted: taskSaved }" title="存为任务（可重复/一键/定时执行）" @click="saveTaskOpen = true">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
+          </button>
           <button class="icon-btn" :class="{ voted: feedbackGiven === 1 }" title="有用" @click="vote(1)">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22V11L12 2l2 7h6a2 2 0 0 1 2 2.2l-1.4 8A2 2 0 0 1 18.6 21H7z"/></svg>
           </button>
@@ -92,6 +102,15 @@
         </div>
       </div>
     </template>
+
+    <!-- 存为任务对话框：整链固化本轮工具帧 -->
+    <TaskSaveDialog
+      v-model="saveTaskOpen"
+      :frames="saveFrames"
+      :default-title="question"
+      :source-question="question"
+      @saved="taskSaved = true"
+    />
   </div>
 </template>
 
@@ -196,10 +215,13 @@ const callingToolName = computed(() => {
   return running ? running.name : ''
 })
 
-// footer 能力徽章：最近一次调用的能力中文名
-const capabilityName = computed(() => {
-  if (!tools.value.length) return ''
-  return tools.value[tools.value.length - 1].name || ''
+// footer 能力徽章：本轮调用的全部能力中文名（按调用顺序去重，展示完整链路）
+const capabilityNames = computed(() => {
+  const names = []
+  for (const t of tools.value) {
+    if (t.name && !names.includes(t.name)) names.push(t.name)
+  }
+  return names
 })
 
 const rowCount = computed(() => result.value && result.value.rowCount != null ? result.value.rowCount : null)
@@ -260,10 +282,36 @@ async function createTaskCard() {
     taskCardError.value = '任务卡生成失败：' + (e.message || e)
   }
 }
+
+// 存为任务（任务卡 2.0）：整链固化本轮全部工具帧（多步流程），成功后内联提示
+const saveTaskOpen = ref(false)
+const taskSaved = ref(false)
+const saveFrames = computed(() => (tools.value || []).map(t => ({
+  id: t.id,
+  name: t.name,
+  args: cleanFrameArgs(t.args)
+})))
+
+/** 参数预清洗：滤前端回显辅助键（_ 前缀）与权限键（acl_ 前缀，后端也会再拦一道） */
+function cleanFrameArgs(raw) {
+  if (!raw || typeof raw !== 'object') return {}
+  const out = {}
+  Object.keys(raw).filter(k => !k.startsWith('_') && !k.startsWith('acl_')).forEach(k => { out[k] = raw[k] })
+  return out
+}
 </script>
 
 <style scoped>
 .ai-msg { margin: 0 0 28px; }
+/* 存为任务成功提示：绿色 tint 内联条 */
+.task-saved-tip {
+  margin: 10px 0 2px; padding: 8px 12px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(23, 160, 94, .07); border: 1px solid rgba(23, 160, 94, .3);
+  border-radius: 10px; font-size: 12px; color: var(--green-deep);
+}
+.saved-link { color: var(--green); font-weight: 600; }
+.saved-link:hover { color: var(--green-deep); }
 .ai-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ai-avatar {
   width: 28px; height: 28px; border-radius: 50%;

@@ -76,6 +76,31 @@ public class AuthService {
         controlJdbcTemplate.update("DELETE FROM user_session WHERE token = ?", token);
     }
 
+    /**
+     * 按用户名构建权限上下文（任务定时执行专用：无会话 token，按创建者当前权限重建 ACL）。
+     * 用户不存在（被删，sys_user 无 status 列）返回 empty，由调度方判定任务失效。
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<PermissionContext> resolveByUsername(String username) {
+        if (username == null || username.isBlank()) return Optional.empty();
+        List<Map<String, Object>> rows = controlJdbcTemplate.queryForList(
+                "SELECT id, tenant_id, username, roles, fleet_ids FROM sys_user WHERE tenant_id='T1' AND username=?",
+                username);
+        if (rows.isEmpty()) return Optional.empty();
+        Map<String, Object> u = rows.get(0);
+        try {
+            Set<String> roles = new LinkedHashSet<>(mapper.readValue((String) u.get("roles"), List.class));
+            Set<String> fleets = new LinkedHashSet<>(mapper.readValue((String) u.get("fleet_ids"), List.class));
+            return Optional.of(new PermissionContext(
+                    (String) u.get("tenant_id"),
+                    ((Number) u.get("id")).longValue(),
+                    (String) u.get("username"),
+                    roles, READ_SCOPES, fleets));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
     /** 密码哈希（P0 演示：SHA-256 + 固定盐；生产接 OIDC/网关身份） */
     public static String hash(String password) {
         try {

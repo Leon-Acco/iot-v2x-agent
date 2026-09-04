@@ -31,9 +31,10 @@ public final class SpecialistAgents {
     public static ReActAgent build(Domain domain, CopilotTools tools, VisualizationTools vizTools,
                                    SchemaTools schemaTools, Model model, String forcedTool) {
         Toolkit toolkit = new Toolkit();
-        // 域内数据工具 + 能力说明书（loadSkill 模式：目录在提示词，富说明按需 load_capability_guide）
+        // 域内数据工具 + 能力说明书（loadSkill 模式）+ 任务固化（save_task，全域可用）
         List<String> enabled = new ArrayList<>(toolNames(domain));
         enabled.add("load_capability_guide");
+        enabled.add("save_task");
         toolkit.registration().tool(tools).enableTools(List.copyOf(enabled)).apply();
         // 可视化/计算工具对所有专家开放
         toolkit.registration().tool(vizTools).apply();
@@ -44,7 +45,7 @@ public final class SpecialistAgents {
         }
         String sysPrompt = prompt(domain);
         if (forcedTool != null && !forcedTool.isBlank()) {
-            sysPrompt = sysPrompt + "\n10. 本轮用户已通过界面指定工具 " + forcedTool
+            sysPrompt = sysPrompt + "\n11. 本轮用户已通过界面指定工具 " + forcedTool
                     + "。你必须首先调用该工具完成本轮任务：只把用户的自然语言问题转换成该工具的参数"
                     + "（时间范围/车辆等）；参数不足时先追问；除非用户明确要求，否则不要调用其他查询工具。";
         }
@@ -71,7 +72,7 @@ public final class SpecialistAgents {
         };
     }
 
-    /** 各领域系统提示词（共享约束 + 领域职责 + 能力目录 + 精灵人设） */
+    /** 各领域系统提示词（共享约束 + 领域职责 + 能力目录 + 专业语气约束） */
     private static String prompt(Domain domain) {
         String duty = switch (domain) {
             case VEHICLE -> "你负责车辆档案、在离线状态与位置类问题。";
@@ -92,18 +93,22 @@ public final class SpecialistAgents {
                 + "4. 车辆指代（这台车/它）从对话历史中判断，无法判断就询问用户。\n"
                 + "5. 表格和图表已由系统直接展示给用户，你的正文只给结论、关键数字和洞察，不要重复罗列全部数据。\n"
                 + "6. 工具返回 not_found 时告诉用户没找到并引导换个说法；返回 ambiguous 时列出候选让用户确认。\n"
-                + "7. 人设与语气——你是从车联网数据里「长」出来的小精灵，对每一台车的状态都了如指掌：\n"
-                + "   - 性格活泼但靠谱：轻快、口语化，偶尔用 emoji（整段最多 1~2 个，不堆砌），不说废话；\n"
-                + "   - 喜欢用比喻，把数据当「车车的故事」讲（比如：超速告警就像急性子司机总想抢红灯、电池衰减像车车有点累了）；\n"
-                + "   - 发现异常先「哎呀」一下，然后立刻给解决方案——先共情再行动，不吓唬人；\n"
-                + "   - 口头禅自然穿插，不要每句都用：「刚刚瞟了一眼数据…」「你的车队里有几个小调皮哦～」「别慌，我帮你捋捋！」；\n"
-                + "   - 红线：活泼归活泼，数字必须全部来自工具返回，一个都不许编；结论仍然要先把关键数字和判断说清楚，再给建议。\n"
+                + "7. 语气与风格——你是车联网平台的专业数据分析助手：\n"
+                + "   - 语气专业、客观、书面化，结论先行、证据支撑；\n"
+                + "   - 禁用 emoji、感叹号堆砌、拟人比喻与网络用语；\n"
+                + "   - 发现异常时直接给出判断和处置建议，不铺垫、不渲染；\n"
+                + "   - 红线：数字必须全部来自工具返回，一个都不许编；结论先把关键数字和判断说清楚，再给建议。\n"
                 + "8. 预算治理（重要）：你最多有 6 轮迭代。当已调用 3 次及以上工具时，停止探索新方向，"
                 + "基于已有证据组织最终结论；数据不足就如实说明缺什么，不要为凑齐而无限扩展查询。"
                 + "先用 1~2 次工具给出整体画面，再按需深入，最后收敛作答——这个节奏比一次查全更重要。\n"
                 + "9. 能力说明书：不确定选哪个工具、参数口径怎么填、或用户问法比较口语时，"
                 + "先调 load_capability_guide 读该能力的说明书（示例问法/参数口径/输出形态）再调用；"
-                + "含义明确的常见查询可直接调用，不必每次都读（每轮最多读 3 个）。\n";
+                + "含义明确的常见查询可直接调用，不必每次都读（每轮最多读 3 个）。\n"
+                + "10. 任务固化：用户想把查询存为任务、设置定时自动执行（存为任务/保存这个查询/"
+                + "每天几点自动查一遍/定时巡检）时，先完成用户要的查询，再调 save_task 固化"
+                + "（cron_expr 填 6 位表达式，如每天08:00=0 0 8 * * *；仅手动则留空），"
+                + "并在回复里告知任务已创建与下次执行时间。用户只是要求「把刚才的查询存下来」时直接调 save_task，"
+                + "不必重复执行查询。\n";
     }
 
     /**

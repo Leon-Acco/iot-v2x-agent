@@ -28,6 +28,9 @@ public class CopilotRuntime {
     private final RenderChartTool renderChartTool;
     private final MemoryExtractor memoryExtractor;
     private final com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder;
+    /** 任务卡 2.0（save_task 工具依赖；ObjectProvider 可空防循环） */
+    private final org.springframework.beans.factory.ObjectProvider<com.dst.v2xagent.task.TaskService> taskServiceProvider;
+    private final org.springframework.beans.factory.ObjectProvider<com.dst.v2xagent.task.TaskSchedulerHolder> taskSchedulerProvider;
 
     /** 显式构造器注入（双数据源必须 @Qualifier，不用 Lombok） */
     public CopilotRuntime(LlmProperties llmProperties,
@@ -38,7 +41,9 @@ public class CopilotRuntime {
                           RunAuditRepository auditRepository,
                           RenderChartTool renderChartTool,
                           MemoryExtractor memoryExtractor,
-                          com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder) {
+                          com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder,
+                          org.springframework.beans.factory.ObjectProvider<com.dst.v2xagent.task.TaskService> taskServiceProvider,
+                          org.springframework.beans.factory.ObjectProvider<com.dst.v2xagent.task.TaskSchedulerHolder> taskSchedulerProvider) {
         this.llmProperties = llmProperties;
         this.structuredModelClient = structuredModelClient;
         this.streamingModelClient = streamingModelClient;
@@ -48,6 +53,8 @@ public class CopilotRuntime {
         this.renderChartTool = renderChartTool;
         this.memoryExtractor = memoryExtractor;
         this.traceRecorder = traceRecorder;
+        this.taskServiceProvider = taskServiceProvider;
+        this.taskSchedulerProvider = taskSchedulerProvider;
     }
 
     public LlmProperties llm() { return llmProperties; }
@@ -67,4 +74,14 @@ public class CopilotRuntime {
     public MemoryExtractor memoryExtractor() { return memoryExtractor; }
 
     public com.dst.v2xagent.observability.trace.TraceRecorder traceRecorder() { return traceRecorder; }
+
+    /** 任务服务（save_task 工具用；理论非空，防御式可空） */
+    public com.dst.v2xagent.task.TaskService taskService() {
+        return taskServiceProvider.getIfAvailable();
+    }
+
+    /** 任务调度持有者（save_task 工具注册 cron 用） */
+    public com.dst.v2xagent.task.TaskSchedulerHolder taskScheduler() {
+        return taskSchedulerProvider.getIfAvailable();
+    }
 }

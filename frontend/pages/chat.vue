@@ -14,7 +14,7 @@
           @rename="onRename"
           @delete="onDeleteSession"
         />
-        <WorkCanvas :stream="activeStream" :viz-list="workbenchViz" @remove-viz="removeViz" @drill="onDrillAsk" @refresh="onRefreshLast" />
+        <WorkCanvas :rounds="rounds" @remove-item="removeItem" @drill="onDrillAsk" @refresh="onRefreshLast" />
         <div class="col-resizer" role="separator" aria-orientation="vertical" @pointerdown="startResize"></div>
         <div class="chat-main">
         <div class="chat-head">
@@ -130,44 +130,101 @@ function onRefreshLast() {
   if (focusBar.value) focusBar.value.reload()
 }
 
-// 三区联动：右侧面板绑定最近一条有查询结果的 AI 消息
-const activeStream = computed(() => {
-  for (let i = messages.value.length - 1; i >= 0; i--) {
-    const m = messages.value[i]
-    if (m.role === 'ai' && m.stream.result.value) return m.stream
+// ---------- 会话级数据工作台流水账：按提问轮次分组，会话内产生什么就展示什么 ----------
+const rounds = ref([])
+/** 当前进行中的轮次（send/onRetry/replay 时开启，产物钩子向它追加条目） */
+let currentRound = null
+
+/** 轮级能力徽章去重收集 */
+function addCapability(round, name) {
+  if (name && !round.capabilities.includes(name)) round.capabilities.push(name)
+}
+
+/** 开启新一轮提问（重试/重放同样开新轮，保留历史轮——流水账语义） */
+function startRound(question) {
+  currentRound = { id: 'r-' + uid(), ts: Date.now(), question: question || '', capabilities: [], items: [] }
+  rounds.value.push(currentRound)
+}
+
+/**
+ * 产物钩子：useAguiStream 把会话内产物（result/chart/viz）实时回调到这里，
+ * 按到达顺序追加进当前轮（不去重、不覆盖）。
+ */
+function collectArtifact(a) {
+  if (!a || !a.kind || !currentRound) return
+  const r = currentRound
+  if (a.kind === 'result' && a.payload && a.payload.columns) {
+    r.items.push({
+      kind: 'result',
+      data: a.payload,
+      chart: null,
+      label: a.payload.capabilityDisplay || (a.tool && a.tool.name) || a.payload.capabilityId || '查询结果',
+      toolName: (a.tool && a.tool.toolName) || null
+    })
+    addCapability(r, a.payload.capabilityDisplay || (a.tool && a.tool.name))
+  } else if (a.kind === 'chart' && a.payload) {
+    // 图表挂到本轮最后一个未挂图表的结果条目（后端 result->chart 成对发射）
+    const target = [...r.items].reverse().find(it => it.kind === 'result' && !it.chart)
+    if (target) {
+      target.chart = a.payload
+    } else {
+      r.items.push({ kind: 'result', data: null, chart: a.payload,
+        label: a.payload.capabilityDisplay || '图表', toolName: null })
+    }
+    if (a.payload.capabilityDisplay) addCapability(r, a.payload.capabilityDisplay)
+  } else if (a.kind === 'viz' && a.payload) {
+    r.items.push({
+      kind: 'viz',
+      data: a.payload,
+      label: a.payload.title || '可视化',
+      toolName: a.payload.tool || (a.tool && a.tool.toolName) || null
+    })
+    if (a.payload.tool === 'generate_visualization') addCapability(r, '可视化')
   }
-  return null
-})
-
-// ---------- 会话级数据工作台：本会话全部可视化卡片累积（不随单轮提问覆盖） ----------
-const workbenchViz = ref([])
-
-/** 卡片去重键：类型+标题相同视为同一张卡（重查刷新数据而非新增） */
-function vizKey(v) {
-  return (v.visualizationType || '') + '|' + (v.title || '')
+  rounds.value = [...rounds.value]
 }
 
-/** 收集一张图：同 key 刷新原卡数据，异 key 追加（每卡带更新时间） */
-function collectViz(v) {
-  if (!v || v.type !== 'visualization') return
-  const item = Object.assign({}, v, { updatedAt: Date.now() })
-  const i = workbenchViz.value.findIndex(x => vizKey(x) === vizKey(v))
-  if (i >= 0) workbenchViz.value.splice(i, 1, item)
-  else workbenchViz.value.push(item)
-}
-
-/** 切会话/刷新/恢复后：从全部 AI 消息的帧快照重建工作台 */
-function rebuildWorkbench() {
+/** 切会话/刷新/恢复后：从全部 AI 消息的帧快照重建流水账 */
+function rebuildRounds() {
   const out = []
   for (const m of messages.value) {
-    if (m.role !== 'ai' || !m.stream || !m.stream.visualizations) continue
-    for (const v of (m.stream.visualizations.value || [])) out.push(Object.assign({}, v))
+    if (m.role !== 'ai' || !m.stream) continue
+    const st = m.stream
+    const r = { id: 'r-' + uid(), ts: m.ts || Date.now(), question: m.question || '', capabilities: [], items: [] }
+    // 各工具的查询结果（快照 tools[].result；主链路单工具、copilot 多工具）
+    const toolResults = (st.tools.value || []).filter(t => t.result && t.result.columns)
+    for (const t of toolResults) {
+      r.items.push({
+        kind: 'result',
+        data: t.result,
+        chart: null,
+        label: t.result.capabilityDisplay || t.name || '查询结果',
+        toolName: t.toolName || null
+      })
+      addCapability(r, t.result.capabilityDisplay || t.name)
+    }
+    // 轮级图表快照挂到最后一个结果条目
+    if (st.result && st.result.value && st.result.value.chart) {
+      const last = r.items[r.items.length - 1]
+      if (last && last.kind === 'result') last.chart = st.result.value.chart
+    }
+    for (const v of (st.visualizations.value || [])) {
+      r.items.push({ kind: 'viz', data: v, label: v.title || '可视化', toolName: v.tool || null })
+      if (v.tool === 'generate_visualization') addCapability(r, '可视化')
+    }
+    if (r.items.length) out.push(r)
   }
-  workbenchViz.value = out
+  rounds.value = out
 }
 
-function removeViz(i) {
-  workbenchViz.value.splice(i, 1)
+/** 移除轮内单个条目 */
+function removeItem(roundId, itemIdx) {
+  const r = rounds.value.find(x => x.id === roundId)
+  if (r) {
+    r.items.splice(itemIdx, 1)
+    if (!r.items.length) rounds.value = rounds.value.filter(x => x.id !== roundId)
+    else rounds.value = [...rounds.value]
+  }
 }
 
 function uid() {
@@ -266,7 +323,8 @@ function newSession() {
   sessions.value.unshift({ id, sessionId: null, threadId: id, title: '新会话', createdAt: Date.now() })
   activeId.value = id
   messages.value = []
-  workbenchViz.value = []
+  rounds.value = []
+  currentRound = null
   persistSessions()
 }
 
@@ -276,7 +334,7 @@ async function selectSession(threadId) {
   activeId.value = threadId
   messages.value = await loadMessagesRemote(threadId)
   restoreActiveStream(threadId)
-  rebuildWorkbench()
+  rebuildRounds()
   persistSessions()
 }
 
@@ -296,8 +354,9 @@ function send(q, forcedTool) {
       : { role: 'assistant', content: m.stream.answer.value || '' })
     .filter(m => m.content)
   const stream = markRaw(useAguiStream())
-  stream.setVizHook(collectViz)
-  const aiMsg = { id: uid(), role: 'ai', question: q, stream }
+  startRound(q)
+  stream.setArtifactHook(collectArtifact)
+  const aiMsg = { id: uid(), role: 'ai', question: q, stream, ts: Date.now() }
   messages.value.push({ id: uid(), role: 'user', content: q }, aiMsg)
   const s = sessions.value.find(x => x.threadId === activeId.value)
   if (s && (s.title === '新会话' || !s.title)) s.title = q.slice(0, 18)
@@ -345,8 +404,9 @@ function onRetry(aiMsg) {
       : { role: 'assistant', content: m.stream.answer.value || '' })
     .filter(m => m.content)
   const fresh = markRaw(useAguiStream())
-  fresh.setVizHook(collectViz)
-  messages.value.splice(idx, 1, { id: aiMsg.id, role: 'ai', question: aiMsg.question, stream: fresh })
+  startRound(aiMsg.question)
+  fresh.setArtifactHook(collectArtifact)
+  messages.value.splice(idx, 1, { id: aiMsg.id, role: 'ai', question: aiMsg.question, stream: fresh, ts: Date.now() })
   const runId = fresh.start(aiMsg.question, 'fleet_copilot', activeId.value, { history })
   const msgId = aiMsg.id
   useChatWorkspace().track(msgId, fresh, activeId.value, runId, aiMsg.question)
@@ -408,10 +468,11 @@ function replayRestore(threadId) {
   if (last && last.role === 'ai' && last.stream.answer.value) { clearActiveRun(); return }
   if (last && last.role === 'ai' && !last.stream.answer.value) messages.value.pop()
   const stream = markRaw(useAguiStream())
-  stream.setVizHook(collectViz)
+  startRound(saved.question || '')
+  stream.setArtifactHook(collectArtifact)
   stream.phase.value = 'understanding'
   stream.runId.value = saved.runId
-  const msg = { id: uid(), role: 'ai', question: saved.question || '', stream }
+  const msg = { id: uid(), role: 'ai', question: saved.question || '', stream, ts: Date.now() }
   messages.value.push(msg)
   bindFinishWatch(msg.id, stream)
   const handle = replayRun(saved.runId, stream.onEvent, () => {
@@ -502,7 +563,7 @@ onMounted(async () => {
   activeId.value = initThread
   messages.value = await loadMessagesRemote(initThread)
   restoreActiveStream(initThread)
-  rebuildWorkbench()
+  rebuildRounds()
   persistSessions()
 })
 </script>

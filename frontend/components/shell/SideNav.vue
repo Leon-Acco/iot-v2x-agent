@@ -35,7 +35,8 @@ const ICONS = {
   lines: '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h9"/>',
   db: '<ellipse cx="12" cy="5.5" rx="7.5" ry="2.7"/><path d="M4.5 5.5v6.4c0 1.5 3.4 2.7 7.5 2.7s7.5-1.2 7.5-2.7V5.5"/><path d="M4.5 11.9v6.6c0 1.5 3.4 2.7 7.5 2.7s7.5-1.2 7.5-2.7v-6.6"/>',
   gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M18.5 5.5l-1.9 1.9M7.4 16.6l-1.9 1.9"/>',
-  shield: '<path d="M12 3l7.5 3v5.4c0 4.6-3.2 8.1-7.5 9.6-4.3-1.5-7.5-5-7.5-9.6V6z"/><path d="M8.8 11.8l2.3 2.3 4.3-4.3"/>'
+  shield: '<path d="M12 3l7.5 3v5.4c0 4.6-3.2 8.1-7.5 9.6-4.3-1.5-7.5-5-7.5-9.6V6z"/><path d="M8.8 11.8l2.3 2.3 4.3-4.3"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
 }
 
 const navGroups = [
@@ -50,6 +51,7 @@ const navGroups = [
   {
     title: '运营',
     items: [
+      { path: '/tasks', label: '任务中心', icon: 'clock' },
       { path: '/anomaly', label: '异常与任务卡', icon: 'warn' }
     ]
   },

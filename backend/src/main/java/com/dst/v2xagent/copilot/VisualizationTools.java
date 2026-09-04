@@ -50,6 +50,7 @@ public class VisualizationTools {
             schema.put("title", title);
             schema.put("caption", caption);
             schema.put("analysis", analysis);
+            schema.put("tool", "generate_visualization");
             schema.put("renderer", renderer);
             schema.put("data", node);
             schema.put("spec", "echarts".equals(renderer)

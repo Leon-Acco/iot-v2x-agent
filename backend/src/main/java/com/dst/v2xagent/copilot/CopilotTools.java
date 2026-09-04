@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,21 +25,152 @@ public class CopilotTools {
     private final ToolResultBridge bridge;
     /** capability 注册中心（说明书数据源）；可空——缺失时 guide 降级为目录级说明 */
     private final CapabilityRegistry registry;
+    /** 任务服务 + 调度器（save_task 工具依赖）；可空——缺失时保存任务不可用 */
+    private final com.dst.v2xagent.task.TaskService taskService;
+    private final com.dst.v2xagent.task.TaskSchedulerHolder taskScheduler;
+    /** 当前会话 id（跨轮「把刚才的存为任务」回退读上一轮帧用）；可空 */
+    private final String sessionId;
     private final ObjectMapper mapper = new ObjectMapper();
 
     /** 本轮已读说明书次数（软预算：每轮最多 3 个） */
     private int guideReads = 0;
 
     public CopilotTools(CopilotQueryRouter queries, PermissionContext ctx, ToolResultBridge bridge) {
-        this(queries, ctx, bridge, null);
+        this(queries, ctx, bridge, null, null, null, null);
     }
 
     public CopilotTools(CopilotQueryRouter queries, PermissionContext ctx, ToolResultBridge bridge,
                         CapabilityRegistry registry) {
+        this(queries, ctx, bridge, registry, null, null, null);
+    }
+
+    public CopilotTools(CopilotQueryRouter queries, PermissionContext ctx, ToolResultBridge bridge,
+                        CapabilityRegistry registry,
+                        com.dst.v2xagent.task.TaskService taskService,
+                        com.dst.v2xagent.task.TaskSchedulerHolder taskScheduler,
+                        String sessionId) {
         this.queries = queries;
         this.ctx = ctx;
         this.bridge = bridge;
         this.registry = registry;
+        this.taskService = taskService;
+        this.taskScheduler = taskScheduler;
+        this.sessionId = sessionId;
+    }
+
+    // ---------- 任务固化（save_task：模型在正常 plan 流程中自主调用） ----------
+
+    /**
+     * 把本轮（或会话最近一轮）已执行的查询固化为可重复执行的任务。
+     * 帧来源优先级：本轮 bridge 帧（模型先查后存）→ 会话上一轮 payload 帧（跨轮「把刚才的存为任务」）。
+     */
+    @Tool(name = "save_task", description = "把当前会话已执行的查询固化为可重复执行的任务，供用户一键重跑或定时自动执行。"
+            + "用户说「存为任务 / 保存这个查询 / 每天早上自动查一遍 / 定时执行」时调用。"
+            + "调用时机：先完成用户要的查询（或本轮已有查询结果），再调用本工具固化。"
+            + "任务执行时会自动重放全部查询步骤并用分析模型生成分析报告。")
+    public String saveTask(
+            @ToolParam(name = "title", required = false,
+                    description = "任务标题（简短动词短语，如「粤C10003 周度告警巡检」）；留空自动取用户提问") String title,
+            @ToolParam(name = "cron_expr", required = false,
+                    description = "6 位 cron 表达式（Asia/Shanghai）。常用：每天08:00=0 0 8 * * *；"
+                            + "每周一08:00=0 0 8 ? * MON；每小时整点=0 0 * * * *。留空=仅手动执行") String cronExpr,
+            @ToolParam(name = "time_range", required = false,
+                    description = "覆盖各步骤的时间范围相对词（如 近7天 / 近30天 / 今天 / 昨天）；"
+                            + "用户要求定时任务固定查某个窗口时使用（如每天查「昨天」）；留空保持原查询时间") String timeRange) {
+        if (taskService == null) {
+            return jsonMsg("unavailable", "任务服务不可用，请告知用户稍后再试。");
+        }
+        try {
+            // 1) 帧收集：本轮优先，跨轮回退会话最近一轮 payload
+            List<TaskFrame> frames = collectFrames();
+            if (frames.isEmpty()) {
+                return jsonMsg("no_frames", "本轮与最近一轮都没有可固化的查询步骤。"
+                        + "请先调用查询工具完成用户要的查询，再保存任务。");
+            }
+            // 2) time_range 覆盖预检（非法时间词直接报给模型，不落库）
+            if (timeRange != null && !timeRange.isBlank()) {
+                try {
+                    com.dst.v2xagent.common.TimeExpressionResolver.resolve(timeRange.trim(),
+                            java.time.ZonedDateTime.now(), java.time.ZoneId.of("Asia/Shanghai"));
+                } catch (Exception e) {
+                    return jsonMsg("bad_time_range", "time_range 无法解析：" + timeRange
+                            + "。请使用 近N天 / 今天 / 昨天 / 本周 / yyyy-MM-dd 到 yyyy-MM-dd 等表达。");
+                }
+            }
+            // 3) 创建（sourceQuestion 用 title 兜底——工具层拿不到用户原文）
+            String taskTitle = title == null || title.isBlank() ? "对话固化的任务" : title.trim();
+            List<com.dst.v2xagent.task.TaskStepRefiner.Frame> refineFrames = frames.stream()
+                    .map(f -> new com.dst.v2xagent.task.TaskStepRefiner.Frame(f.id(), f.name(), f.args()))
+                    .toList();
+            Map<String, Object> created = taskService.createFromSession(ctx,
+                    new com.dst.v2xagent.task.TaskService.CreateRequest(
+                            taskTitle, refineFrames, sessionId, taskTitle, Boolean.TRUE));
+            // 4) 时间覆盖（创建后直接改 steps 里的时间词——走 service 提供的覆盖入口）
+            String applyNote = "";
+            if (timeRange != null && !timeRange.isBlank()) {
+                taskService.overrideTimeRange(((Number) created.get("id")).longValue(), timeRange.trim());
+                applyNote = "；时间范围已统一覆盖为「" + timeRange.trim() + "」";
+            }
+            // 5) 定时注册
+            String scheduleNote = "手动任务（可在任务中心一键执行）";
+            if (cronExpr != null && !cronExpr.isBlank()) {
+                long taskId = ((Number) created.get("id")).longValue();
+                Map<String, Object> sch = taskService.setSchedule(ctx, taskId,
+                        new com.dst.v2xagent.task.TaskService.ScheduleRequest(true, cronExpr.trim()));
+                if (taskScheduler != null) {
+                    taskScheduler.schedule(taskId, cronExpr.trim());
+                }
+                scheduleNote = "定时任务（cron=" + cronExpr.trim()
+                        + "，下次触发 " + sch.get("nextFireAt") + "）";
+            }
+            // 6) 返回给模型的摘要（steps 是 StepDraft record，须经 Jackson 转换再取字段）
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("status", "ok");
+            out.put("taskId", created.get("id"));
+            out.put("title", created.get("title"));
+            List<Map<String, Object>> stepMaps = mapper.convertValue(created.get("steps"),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            out.put("steps", stepMaps.stream().map(s -> String.valueOf(s.get("displayName"))).toList());
+            out.put("skipped", created.get("skipped"));
+            out.put("schedule", scheduleNote);
+            out.put("note", "任务已保存" + applyNote + "，每次执行会重放全部查询并生成分析报告；"
+                    + "请在回复里告知用户任务已创建、如何触发、下次执行时间。");
+            return toJson(out);
+        } catch (Exception e) {
+            return jsonMsg("error", "任务保存失败：" + rootMsg(e));
+        }
+    }
+
+    /** 帧三元组（bridge 帧与会话 payload 帧统一形状） */
+    private record TaskFrame(String id, String name, Map<String, Object> args) {}
+
+    /** 收集可固化帧：本轮 bridge 帧；为空回退会话最近一轮 assistant payload 的 tools */
+    private List<TaskFrame> collectFrames() {
+        List<TaskFrame> out = new ArrayList<>();
+        for (ToolResultBridge.FrameRecord f : bridge.frames()) {
+            out.add(new TaskFrame(f.id(), f.name(), f.args()));
+        }
+        if (!out.isEmpty() || sessionId == null) {
+            return out;
+        }
+        // 跨轮回退：TaskService 读会话最近一轮 payload 帧（「把刚才的存为任务」）
+        try {
+            for (com.dst.v2xagent.task.TaskStepRefiner.Frame f : taskService.lastSessionFrames(ctx.tenantId(), sessionId)) {
+                out.add(new TaskFrame(f.id(), f.name(), f.args()));
+            }
+        } catch (Exception ignore) {
+            // 回退失败按无帧处理
+        }
+        return out;
+    }
+
+    private static String rootMsg(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null) {
+            t = t.getCause();
+        }
+        String msg = String.valueOf(t.getMessage());
+        return msg.length() > 200 ? msg.substring(0, 200) : msg;
     }
 
     // ---------- 能力说明书（loadSkill 模式） ----------
@@ -172,7 +304,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.vehicleInfo(vin, ctx);
-        bridge.emitOutcome(oc, Map.of("vehicle", vehicle));
+        bridge.emitOutcome(oc, Map.of("vehicle", vehicle), "query_vehicle_info");
         return summarize(oc, "车辆档案已展示");
     }
 
@@ -182,7 +314,7 @@ public class CopilotTools {
             @ToolParam(name = "hours", required = false, description = "离线时长阈值（小时），默认 24") Integer hours) {
         int h = hours == null || hours <= 0 ? 24 : hours;
         SimQueries.Outcome oc = queries.offlineVehicles(h, ctx);
-        bridge.emitOutcome(oc, Map.of("offline_hours>=", h));
+        bridge.emitOutcome(oc, Map.of("offline_hours>=", h), "list_offline_vehicles");
         return summarize(oc, "离线超 " + h + " 小时车辆 " + oc.table().rowCount() + " 台");
     }
 
@@ -198,7 +330,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.vehicleLocation(vin, ctx);
-        bridge.emitOutcome(oc, Map.of("vehicle", vehicle));
+        bridge.emitOutcome(oc, Map.of("vehicle", vehicle), "query_vehicle_location");
         return summarize(oc, "最后位置已展示");
     }
 
@@ -218,7 +350,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.alarmsByType(range, vin, ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "count_alarms_by_type");
         return summarize(oc, range.display() + " 告警类型统计已展示");
     }
 
@@ -238,7 +370,7 @@ public class CopilotTools {
         }
         int top = limit == null ? 50 : limit;
         SimQueries.Outcome oc = queries.alarmList(range, vin, top, ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "list_alarms");
         return summarize(oc, range.display() + " 告警明细 " + oc.table().rowCount() + " 条");
     }
 
@@ -248,7 +380,7 @@ public class CopilotTools {
             @ToolParam(name = "time_range", required = false, description = "时间范围，默认近7天") String timeRange) {
         TimeRanges.Range range = TimeRanges.parse(timeRange, queries.baseDate());
         SimQueries.Outcome oc = queries.fleetAlarmCompare(range, ctx);
-        bridge.emitOutcome(oc, argsOf(range, null));
+        bridge.emitOutcome(oc, argsOf(range, null), "compare_fleet_alarms");
         return summarize(oc, range.display() + " 车队告警对比已展示");
     }
 
@@ -268,7 +400,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.faultsByPart(range, vin, ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "count_faults_by_part");
         return summarize(oc, range.display() + " 故障部位统计已展示");
     }
 
@@ -287,7 +419,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.faultList(range, vin, Boolean.TRUE.equals(activeOnly), ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "list_faults");
         return summarize(oc, range.display() + " 故障明细 " + oc.table().rowCount() + " 条");
     }
 
@@ -299,7 +431,7 @@ public class CopilotTools {
             @ToolParam(name = "time_range", required = false, description = "时间范围，默认近7天") String timeRange) {
         TimeRanges.Range range = TimeRanges.parse(timeRange, queries.baseDate());
         SimQueries.Outcome oc = queries.mileageByFleet(range, ctx);
-        bridge.emitOutcome(oc, argsOf(range, null));
+        bridge.emitOutcome(oc, argsOf(range, null), "compare_fleet_mileage");
         return summarize(oc, range.display() + " 车队里程对比已展示");
     }
 
@@ -317,7 +449,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.mileageDaily(range, vin, ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "query_mileage_daily");
         return summarize(oc, range.display() + " 里程趋势已展示");
     }
 
@@ -335,7 +467,7 @@ public class CopilotTools {
             return vin.substring("AMBIGUOUS:".length());
         }
         SimQueries.Outcome oc = queries.chargeStats(range, vin, ctx);
-        bridge.emitOutcome(oc, argsOf(range, vehicle));
+        bridge.emitOutcome(oc, argsOf(range, vehicle), "query_charge_stats");
         return summarize(oc, range.display() + " 充电统计已展示");
     }
 

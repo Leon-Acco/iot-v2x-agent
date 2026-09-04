@@ -1,6 +1,7 @@
 id: data_base
 display: 数据底座 Agent
-capability_domains: [online, location, mileage, alarm, fault, charge, trip, geofence, schema]
+# 数据底座 Agent 可见全部域能力（battery/energy/coldchain/safety/control 为 V19 新增域，此前失配不可见）
+capability_domains: [online, location, mileage, alarm, fault, charge, trip, geofence, schema, battery, energy, coldchain, safety, control]
 read_org_memory: false
 example_questions:
   - 各车队近 7 天里程对比

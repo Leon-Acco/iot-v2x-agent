@@ -8,7 +8,6 @@ import com.dst.v2xagent.runtime.model.CapabilitySelection;
 import com.dst.v2xagent.orchestration.OrchestrationExecutor;
 import com.dst.v2xagent.runtime.spi.StreamingModelClient;
 import com.dst.v2xagent.runtime.spi.StructuredModelClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,14 +28,13 @@ public class LlmClient {
 
     private final LlmProperties props;
     private final MockExtractor mockExtractor;
-    private final ObjectMapper mapper = new ObjectMapper();
 
     /** 真实模式 SPI（mock 模式下为 null） */
     private final org.springframework.beans.factory.ObjectProvider<StructuredModelClient> structuredClient;
     private final org.springframework.beans.factory.ObjectProvider<StreamingModelClient> streamingClient;
 
     /**
-     * 意图/槽位抽取：返回受 Schema 约束的 CapabilitySelection。
+     * 意图/槽位抽取（原生 function calling）：候选能力以工具形式下发，模型以 tool_calls 返回选择与参数。
      * mock 模式走规则抽取；真实模式调用模型并做二次校验，失败可重试 1 次（降温度）。
      */
     public CapabilitySelection extract(String question, List<CapabilityDefinition> candidates) {
@@ -48,17 +46,20 @@ public class LlmClient {
             log.warn("LLM 供应商不可用，降级为规则抽取");
             return mockExtractor.extract(question, candidates);
         }
-        String schema = PromptBuilder.extractOutputSchema(candidates);
-        String userPrompt = PromptBuilder.extractUserPrompt(question, candidates);
+        // 候选目录由工具定义承载（name/description/parameters），用户 prompt 只带问题本身
+        List<StructuredModelClient.ToolSpec> tools = PromptBuilder.buildToolSpecs(candidates);
+        String userPrompt = "用户问题：" + question;
         LlmProperties.Stage stage = props.getExtract();
 
         Exception last = null;
         for (int attempt = 0; attempt <= stage.getMaxRetries(); attempt++) {
             try {
                 double temperature = attempt == 0 ? stage.getTemperature() : 0;
-                String json = client.generate(new StructuredModelClient.StructuredRequest(
-                        PromptBuilder.EXTRACT_SYSTEM, userPrompt, schema, temperature, stage.getTimeoutMs()));
-                CapabilitySelection selection = parseSelection(json);
+                StructuredModelClient.ToolCall call = client.generateWithTools(
+                        new StructuredModelClient.StructuredRequest(
+                                PromptBuilder.EXTRACT_SYSTEM, userPrompt, null,
+                                temperature, stage.getTimeoutMs(), tools));
+                CapabilitySelection selection = fromToolCall(call);
                 // 二次校验：capability_id 必须在候选内（失败关闭）
                 String finalId = selection.capabilityId();
                 if (finalId != null && candidates.stream().noneMatch(c -> c.getId().equals(finalId))) {
@@ -72,6 +73,21 @@ public class LlmClient {
         }
         if (last instanceof ApiException ae) throw ae;
         throw new ApiException("LLM_ERROR", "understand", true, "意图理解失败: " + (last == null ? "未知" : last.getMessage()));
+    }
+
+    /** ToolCall → CapabilitySelection：拒答工具映射为 null；confidence 从参数剥离；缺参由 ParamResolver 兜底澄清 */
+    private CapabilitySelection fromToolCall(StructuredModelClient.ToolCall call) {
+        if (call == null || call.name() == null || call.name().isBlank()) {
+            throw ApiException.schemaInvalid("模型未返回有效的工具调用");
+        }
+        if (PromptBuilder.REJECT_TOOL.equals(call.name())) {
+            return new CapabilitySelection(null, Map.of(), 0, List.of(), List.of());
+        }
+        Map<String, Object> args = new java.util.LinkedHashMap<>(
+                call.arguments() == null ? Map.of() : call.arguments());
+        double confidence = args.get("confidence") instanceof Number n ? n.doubleValue() : 0.5;
+        args.remove("confidence");
+        return new CapabilitySelection(call.name(), args, confidence, List.of(), List.of());
     }
 
     /**
@@ -99,9 +115,6 @@ public class LlmClient {
             emitTemplateConclusion(def, table, timeRangeDisplay, sink);
         }
     }
-
-    /** 模板结论（mock/降级路径）：只引用结果集数值，绝不算新数 */
-
 
     /**
      * 编排结论（P1）：多步数据汇总 + 缺失声明；mock 走模板摘要，真实模式走流式。
@@ -133,7 +146,7 @@ public class LlmClient {
             java.util.List<String> missing, String timeRangeDisplay,
             StreamingModelClient.TokenSink sink) {
         StringBuilder sb = new StringBuilder();
-        sb.append("已为你做多源取证分析「").append(templateDisplay).append("」");
+        sb.append("已完成多源取证分析「").append(templateDisplay).append("」");
         if (timeRangeDisplay != null) sb.append("，统计区间 ").append(timeRangeDisplay);
         sb.append("。\n\n");
         for (OrchestrationExecutor.StepOutcome step : steps.values()) {
@@ -193,7 +206,7 @@ public class LlmClient {
     private void emitTemplateConclusion(CapabilityDefinition def, TableResult table,
                                         String timeRangeDisplay, StreamingModelClient.TokenSink sink) {
         StringBuilder sb = new StringBuilder();
-        sb.append("已为你查询「").append(def.getDisplay()).append("」");
+        sb.append("已完成「").append(def.getDisplay()).append("」查询");
         if (timeRangeDisplay != null) sb.append("，统计区间 ").append(timeRangeDisplay);
         sb.append("。\n\n");
         if (table.rowCount() == 0) {
@@ -251,24 +264,5 @@ public class LlmClient {
         }
         if (table.rows().size() > limit) sb.append("...（其余 ").append(table.rows().size() - limit).append(" 行略）\n");
         return sb.toString();
-    }
-
-    /** 解析模型抽取输出（宽容解析 JSON） */
-    @SuppressWarnings("unchecked")
-    private CapabilitySelection parseSelection(String json) throws Exception {
-        // 提取第一个 JSON 对象（模型可能包裹 markdown 代码块）
-        int start = json.indexOf('{');
-        int end = json.lastIndexOf('}');
-        if (start < 0 || end <= start) throw ApiException.schemaInvalid("模型输出不是 JSON");
-        Map<String, Object> map = mapper.readValue(json.substring(start, end + 1), Map.class);
-        Object id = map.get("capability_id");
-        Object conf = map.get("confidence");
-        Object params = map.get("params");
-        return new CapabilitySelection(
-                id == null ? null : String.valueOf(id),
-                params instanceof Map ? (Map<String, Object>) params : Map.of(),
-                conf instanceof Number n ? n.doubleValue() : 0,
-                map.get("missing") instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of(),
-                map.get("alternatives") instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of());
     }
 }
