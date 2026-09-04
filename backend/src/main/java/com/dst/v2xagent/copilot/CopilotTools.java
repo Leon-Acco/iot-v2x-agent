@@ -1,5 +1,7 @@
 package com.dst.v2xagent.copilot;
 
+import com.dst.v2xagent.capability.CapabilityRegistry;
+import com.dst.v2xagent.capability.model.CapabilityDefinition;
 import com.dst.v2xagent.common.PermissionContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.agentscope.core.tool.Tool;
@@ -13,18 +15,147 @@ import java.util.Map;
  * Copilot 工具集（AgentScope @Tool 注解驱动，每次运行构造一个实例）。
  * 每个工具：解析参数 -> 调 SimQueries（确定性 SQL + ACL）-> 桥推表格/图表给前端
  * -> 返回紧凑摘要 JSON 给模型。模型看不到 SQL，也碰不到权限。
+ * 另含 load_capability_guide（说明书工具）：capability 目录 -> 富说明书按需加载（loadSkill 模式）。
  */
 public class CopilotTools {
 
     private final CopilotQueryRouter queries;
     private final PermissionContext ctx;
     private final ToolResultBridge bridge;
+    /** capability 注册中心（说明书数据源）；可空——缺失时 guide 降级为目录级说明 */
+    private final CapabilityRegistry registry;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /** 本轮已读说明书次数（软预算：每轮最多 3 个） */
+    private int guideReads = 0;
+
     public CopilotTools(CopilotQueryRouter queries, PermissionContext ctx, ToolResultBridge bridge) {
+        this(queries, ctx, bridge, null);
+    }
+
+    public CopilotTools(CopilotQueryRouter queries, PermissionContext ctx, ToolResultBridge bridge,
+                        CapabilityRegistry registry) {
         this.queries = queries;
         this.ctx = ctx;
         this.bridge = bridge;
+        this.registry = registry;
+    }
+
+    // ---------- 能力说明书（loadSkill 模式） ----------
+
+    /**
+     * 能力说明书：调数据工具前按需查阅（参数口径 / 能答什么 / 示例问法 / 输出与图表形态）。
+     * 数据源 = CapabilityRegistry 的富元数据，经 CopilotToolCatalog.registryId 桥接到本链路工具面。
+     */
+    @Tool(name = "load_capability_guide", description = "调用数据查询工具前，先用它查看该能力的使用说明："
+            + "参数怎么填、能回答什么问题、示例问法、输出与图表形态。每轮最多读 3 个。")
+    public String loadCapabilityGuide(
+            @ToolParam(name = "tool", required = true, description = "工具名（如 count_alarms_by_type）或中文名（如 告警类型统计）") String tool) {
+        CopilotToolCatalog.ToolMeta meta = metaOf(tool);
+        if (meta == null) {
+            return jsonMsg("not_found", "没有这个工具：" + tool + "。可用工具："
+                    + String.join("、", CopilotToolCatalog.list().stream().map(CopilotToolCatalog.ToolMeta::id).toList()));
+        }
+        if (++guideReads > 3) {
+            return jsonMsg("budget", "本轮说明书已读满 3 个，请基于已有信息决策：直接调用工具或向用户澄清。");
+        }
+        String guide;
+        String registryId = meta.registryId();
+        if (registry != null && registryId != null) {
+            var def = registry.get(registryId);
+            if (def.isPresent()) {
+                guide = renderGuide(meta, def.get());
+            } else {
+                guide = renderMetaGuide(meta, "capability 目录中未找到 " + registryId + "，以下为目录级说明");
+            }
+        } else {
+            guide = renderMetaGuide(meta, registryId == null
+                    ? "该工具暂无对应 capability 富说明书，以下为目录级说明"
+                    : "capability 注册中心不可用，以下为目录级说明");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("status", "ok");
+        out.put("tool", meta.id());
+        out.put("guide", guide);
+        return toJson(out);
+    }
+
+    /** 工具 id/中文名 -> 目录条目（不区分大小写匹配 id） */
+    private static CopilotToolCatalog.ToolMeta metaOf(String tool) {
+        if (tool == null || tool.isBlank()) {
+            return null;
+        }
+        String key = tool.trim();
+        return CopilotToolCatalog.list().stream()
+                .filter(t -> t.id().equalsIgnoreCase(key) || t.display().equals(key))
+                .findFirst().orElse(null);
+    }
+
+    /** 渲染富说明书（registry 元数据）：用途/别名/参数口径/示例问法/输出列语义/图表与时效 */
+    private String renderGuide(CopilotToolCatalog.ToolMeta meta, CapabilityDefinition def) {
+        StringBuilder md = new StringBuilder();
+        md.append("# ").append(meta.display()).append("（").append(meta.id()).append("）\n");
+        if (notBlank(def.getDescription())) {
+            md.append("用途：").append(def.getDescription()).append('\n');
+        }
+        if (def.getAliases() != null && !def.getAliases().isEmpty()) {
+            md.append("别名/关键词：").append(String.join("、", def.getAliases())).append('\n');
+        }
+        if (def.getParams() != null && !def.getParams().isEmpty()) {
+            md.append("参数口径：\n");
+            for (CapabilityDefinition.ParamDef p : def.getParams()) {
+                StringBuilder line = new StringBuilder("- ").append(p.getName())
+                        .append("（").append(p.getType() == null ? "string" : p.getType())
+                        .append(p.isRequired() ? "，必填" : "，可选").append('）');
+                if (notBlank(p.getDescription())) {
+                    line.append("：").append(p.getDescription());
+                }
+                if (p.getDefaultValue() != null) {
+                    line.append("；默认 ").append(p.getDefaultValue());
+                }
+                if (p.getMaxSpanDays() != null) {
+                    line.append("；最大跨度 ").append(p.getMaxSpanDays()).append(" 天");
+                }
+                if (p.getEnumValues() != null && !p.getEnumValues().isEmpty()) {
+                    line.append("；可选值：").append(String.join("|", p.getEnumValues()));
+                }
+                md.append(line).append('\n');
+            }
+        }
+        if (def.getSampleQuestions() != null && !def.getSampleQuestions().isEmpty()) {
+            md.append("能回答的问法示例：\n");
+            def.getSampleQuestions().forEach(q -> md.append("- 「").append(q).append("」\n"));
+        }
+        if (def.getReturns() != null && def.getReturns().getColumns() != null
+                && !def.getReturns().getColumns().isEmpty()) {
+            md.append("输出（").append(def.getReturns().getShape() == null ? "table" : def.getReturns().getShape()).append("）：");
+            List<String> cols = def.getReturns().getColumns().stream()
+                    .map(c -> (notBlank(c.getDisplay()) ? c.getDisplay() : c.getName())
+                            + (c.getSemantic() == null ? "" : "/" + c.getSemantic())
+                            + (c.getUnit() == null ? "" : "(" + c.getUnit() + ")"))
+                    .toList();
+            md.append(String.join("、", cols)).append('\n');
+        }
+        if (notBlank(def.getChartHint())) {
+            md.append("建议图表：").append(def.getChartHint()).append('\n');
+        }
+        if (def.getFreshnessPolicy() != null) {
+            md.append("数据时效：").append(def.getFreshnessPolicy().getType())
+                    .append("（预期延迟 ").append(def.getFreshnessPolicy().getExpectedDelayMin()).append(" 分钟）\n");
+        }
+        md.append("提示：说明书用于理解口径与问法，实际调用的参数名以工具定义为准。\n");
+        return md.toString();
+    }
+
+    /** 降级说明书：registry 不可用 / 无映射时，基于目录条目给最小可用说明 */
+    private String renderMetaGuide(CopilotToolCatalog.ToolMeta meta, String reason) {
+        return "# " + meta.display() + "（" + meta.id() + "）\n"
+                + "用途：" + meta.description() + "\n"
+                + "（" + reason + "；参数口径见工具参数描述：时间范围默认近 7 天，车辆支持车牌/VIN 模糊。）\n";
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
     }
 
     // ---------- 车辆域 ----------
@@ -245,10 +376,11 @@ public class CopilotTools {
         return m;
     }
 
-    /** 给模型的紧凑摘要：小结果全量，大结果只给前 10 行 + 总数 */
+    /** 给模型的紧凑摘要：小结果全量，大结果只给前 10 行 + 总数；空结果附纠错提示（让模型自己决定换范围还是追问） */
     private String summarize(SimQueries.Outcome oc, String note) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("status", "ok");
+        boolean empty = oc.table().rowCount() == 0;
+        out.put("status", empty ? "empty" : "ok");
         out.put("note", note);
         out.put("rowCount", oc.table().rowCount());
         List<String> cols = oc.def().getReturns().getColumns().stream()
@@ -267,6 +399,19 @@ public class CopilotTools {
         out.put("rows", rows);
         if (oc.table().rowCount() > limit) {
             out.put("truncatedNote", "仅展示前 " + limit + " 行，完整表格已推送前端");
+        }
+        if (empty) {
+            out.put("hint", "本次查询条件下没有数据。这不是系统故障，你可以自行决定下一步："
+                    + "① 换更长时间范围（如改查近 30 天）再调一次本工具；"
+                    + "② 确认车辆标识/参数是否正确；"
+                    + "③ 若多路都为空，如实告诉用户当前数据基准日为 " + queries.baseDate()
+                    + "，该范围可能确实无上报，并建议可用的时间范围。");
+        }
+        // 预算动态注入：第 3 次取证起在结果里提醒收敛（对齐系统提示规则 8 的阈值）。
+        // AgentScope 运行中无法插消息，工具返回值是唯一能写回模型循环的通道。
+        if (bridge.receiptCount() >= 3) {
+            out.put("budgetNote", "已取证 " + bridge.receiptCount() + " 次（迭代上限 6 轮）。"
+                    + "请停止扩展新查询方向，基于已有证据组织最终结论；关键数据仍缺就直接说明缺口，不要继续探索。");
         }
         return toJson(out);
     }

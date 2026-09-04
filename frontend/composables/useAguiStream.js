@@ -22,6 +22,12 @@ export function useAguiStream() {
   let flushScheduled = false
   let pendingThink = ''
   let thinkFlushScheduled = false
+  // 可视化收集钩子：页面层注入，用于把新图累积进会话级工作台
+  let vizHook = null
+
+  function setVizHook(cb) {
+    vizHook = typeof cb === 'function' ? cb : null
+  }
 
   function reset() {
     phase.value = 'idle'
@@ -156,7 +162,11 @@ export function useAguiStream() {
         break
       case 'VIS_SPEC':
         // UI Schema frame: inline visualization rendered by VisualizationRenderer
-        if (payload && payload.type === 'visualization') visualizations.value.push(payload)
+        if (payload && payload.type === 'visualization') {
+          visualizations.value.push(payload)
+          // 会话级数据工作台钩子：新图同步收集（同 key 刷新、异 key 追加）
+          if (vizHook) vizHook(payload)
+        }
         break
       case 'CHART_SPEC':
         // 图表规格帧：合并进 result，供 ChartPanel 渲染
@@ -241,6 +251,6 @@ export function useAguiStream() {
     clarify, followUpSuggestions, visualizations, traceSteps,
     thinkingText, thinkingActive,
     toolCallCount, isRunning,
-    start, cancel, rerun, rate, onEvent
+    start, cancel, rerun, rate, onEvent, setVizHook
   }
 }
