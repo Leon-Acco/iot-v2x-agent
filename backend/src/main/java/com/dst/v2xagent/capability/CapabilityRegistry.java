@@ -47,7 +47,13 @@ public class CapabilityRegistry {
     /** 把 resources/capability/*.yaml 种子同步进控制库（幂等） */
     private void seedFromYaml() throws Exception {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Resource[] resources = resolver.getResources("classpath:capability/*.yaml");
+        Resource[] resources;
+        try {
+            resources = resolver.getResources("classpath:capability/*.yaml");
+        } catch (java.io.FileNotFoundException e) {
+            // capability dir no longer shipped (DB-native since V19); skip yaml seeding
+            return;
+        }
         for (Resource res : resources) {
             CapabilityDefinition def = yamlMapper.readValue(res.getInputStream(), CapabilityDefinition.class);
             CapabilityValidator.validate(def);

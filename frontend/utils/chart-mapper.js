@@ -14,7 +14,8 @@ const PALETTE = ['#2B7FFF', '#38BDF8', '#F59E0B', '#22C55E', '#7FB5FF', '#A8CCFF
 function splitColumns(columns) {
   const cols = Array.isArray(columns) ? columns : []
   return {
-    categories: cols.filter(c => c && c.semantic === 'category'),
+    // time 语义列同样可作 x 轴（日期串进类目轴），修复时间序列 x 轴退化为序号的 bug
+    categories: cols.filter(c => c && (c.semantic === 'category' || c.semantic === 'time')),
     metrics: cols.filter(c => c && c.semantic === 'metric')
   }
 }
@@ -59,8 +60,12 @@ export function buildChartOption(chartType, columns, rows) {
     })
   }
 
-  // bar / line / area 默认走类目轴
-  const xData = catIdx >= 0 ? data.map(r => String(r[catIdx])) : data.map((_, i) => String(i + 1))
+  // bar / line / area 默认走类目轴；time 列先按值排序，保证日期序列单调不回折
+  let sorted = data
+  if (catIdx >= 0 && categories[0] && categories[0].semantic === 'time') {
+    sorted = data.slice().sort((a, b) => String(a[catIdx]).localeCompare(String(b[catIdx])))
+  }
+  const xData = catIdx >= 0 ? sorted.map(r => String(r[catIdx])) : data.map((_, i) => String(i + 1))
   const series = metrics.map(m => {
     const mIdx = cols.indexOf(m)
     return {
@@ -69,7 +74,7 @@ export function buildChartOption(chartType, columns, rows) {
       areaStyle: chartType === 'area' ? { opacity: 0.18 } : undefined,
       smooth: chartType !== 'bar',
       barMaxWidth: 36,
-      data: data.map(r => toNumber(r[mIdx]))
+      data: sorted.map(r => toNumber(r[mIdx]))
     }
   })
   return Object.assign({}, base, {

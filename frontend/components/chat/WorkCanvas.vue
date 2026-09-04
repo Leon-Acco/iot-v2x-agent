@@ -31,11 +31,21 @@
         <VisualizationRenderer v-for="(v, i) in visualizations" :key="i" :vis="v" />
       </div>
 
-      <!-- query result: chart + table -->
+      <!-- query result: chart + type switch + table -->
       <div v-if="result" class="wc-result">
         <div class="wc-card">
           <div class="wc-card-head">
             <span class="wc-card-title">{{ resultTitle }}</span>
+            <span class="wc-switch">
+              <button
+                v-for="t in chartTypes"
+                :key="t"
+                class="wc-switch-btn"
+                :class="{ on: activeChartType === t }"
+                type="button"
+                @click="activeChartType = t"
+              >{{ chartTypeLabel(t) }}</button>
+            </span>
             <span v-if="resultCaption" class="wc-card-caption">{{ resultCaption }}</span>
           </div>
           <ChartPanel v-if="chartOption" :option="chartOption" height="300px" />
@@ -91,11 +101,24 @@ const resultCaption = computed(() => {
   return '共 ' + (n == null ? 0 : n) + ' 行数据' + (result.value.truncated ? '（已截断）' : '')
 })
 
+// 图表类型切换：默认取后端 chartType，前端可在 折线/柱状/面积/表格 间切换（自构 option 红线）
+const chartTypes = ['bar', 'line', 'area', 'table']
+const activeChartType = ref('bar')
+
+watch(result, (r) => {
+  activeChartType.value = (r && r.chart && r.chart.chartType) || 'bar'
+  if (!chartTypes.includes(activeChartType.value)) activeChartType.value = 'bar'
+})
+
+function chartTypeLabel(t) {
+  const labels = { bar: '柱状', line: '折线', area: '面积', table: '表格' }
+  return labels[t] || t
+}
+
 const chartOption = computed(() => {
   if (!result.value || !result.value.columns) return null
-  const type = (result.value.chart && result.value.chart.chartType) || 'bar'
-  if (type === 'table') return null
-  return buildChartOption(type, result.value.columns, result.value.rows)
+  if (activeChartType.value === 'table') return null
+  return buildChartOption(activeChartType.value, result.value.columns, result.value.rows)
 })
 </script>
 
@@ -127,6 +150,17 @@ const chartOption = computed(() => {
 .wc-card-head { margin-bottom: 10px; }
 .wc-card-title { font-size: 14px; font-weight: 600; color: var(--text-1, #171717); }
 .wc-card-caption { display: block; font-size: 12px; color: var(--text-3, #737373); margin-top: 2px; }
+.wc-switch { display: inline-flex; gap: 4px; margin-left: 10px; vertical-align: middle; }
+.wc-switch-btn {
+  height: 22px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--border-default, #e5e7eb); background: #fff;
+  color: var(--text-3, #737373); font: inherit; font-size: 11px; cursor: pointer;
+}
+.wc-switch-btn:hover { border-color: var(--green-deep); color: var(--green-ink); }
+.wc-switch-btn.on {
+  background: rgba(23, 160, 94, .12); border-color: rgba(23, 160, 94, .6);
+  color: var(--green-ink, #0E6E46); font-weight: 600;
+}
 .wc-table-wrap { margin-top: 12px; }
 </style>
 

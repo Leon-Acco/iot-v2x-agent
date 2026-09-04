@@ -11,6 +11,7 @@ import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,14 @@ public class AguiFluxSink implements RunEventSink {
     /** 最近 capability（ARGS/RESULT 归属） */
     private String lastToolCallId;
 
+    // ---- 帧快照收集器（会话恢复数据源：payload_json） ----
+    /** 轮次级快照（chart / result / followUps / traceId） */
+    private final Map<String, Object> snap = new LinkedHashMap<>();
+    /** 工具调用叙事快照 */
+    private final List<Map<String, Object>> snapTools = new ArrayList<>();
+    /** 可视化 UI Schema 快照（上限 6 张） */
+    private final List<Map<String, Object>> snapVizs = new ArrayList<>();
+
     public AguiFluxSink(String threadId, String runId, StringRedisTemplate redisTemplate) {
         this.threadId = threadId;
         this.runId = runId;
@@ -52,6 +61,7 @@ public class AguiFluxSink implements RunEventSink {
         if (closed) {
             return;
         }
+        collect(event);
         for (AguiEvent e : translate(event)) {
             sink.tryEmitNext(e);
             buffer(e);
@@ -123,10 +133,96 @@ public class AguiFluxSink implements RunEventSink {
             }
             case "RUN_ERROR":
                 return List.of(new AguiEvent.RunError(threadId, runId, str(p, "message"), str(p, "errorCode")));
+            case "THINKING_START":
+                return List.of(new AguiEvent.Custom(threadId, runId, "THINKING", Map.of("phase", "start")));
+            case "THINKING_DELTA":
+                return List.of(new AguiEvent.Custom(threadId, runId, "THINKING",
+                        Map.of("phase", "delta", "delta", str(p, "delta"))));
+            case "THINKING_END":
+                return List.of(new AguiEvent.Custom(threadId, runId, "THINKING", Map.of("phase", "end")));
             default:
                 // 域事件（CHART_SPEC / CLARIFY / REFUSE）走 CUSTOM 承载
                 return List.of(new AguiEvent.Custom(threadId, runId, event.type(), p));
         }
+    }
+
+    /**
+     * 帧快照收集：运行期间的 TOOL_CALL、CHART_SPEC、VIS_SPEC、RUN_FINISHED 帧收集为
+     * 可恢复快照（落 agent_session_message.payload_json），失败不影响推送。
+     */
+    private void collect(AgUiEvent event) {
+        try {
+            Map<String, Object> p = event.payload();
+            switch (event.type()) {
+                case "TOOL_CALL_START" -> {
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("id", str(p, "capabilityId"));
+                    t.put("name", str(p, "displayName"));
+                    t.put("status", "done");
+                    t.put("args", null);
+                    snapTools.add(t);
+                }
+                case "TOOL_CALL_ARGS" -> {
+                    if (!snapTools.isEmpty()) {
+                        snapTools.get(snapTools.size() - 1).put("args", p.get("args"));
+                    }
+                }
+                case "TOOL_CALL_RESULT" -> {
+                    Map<String, Object> trunc = truncateTable(p);
+                    if (!snapTools.isEmpty()) {
+                        snapTools.get(snapTools.size() - 1).put("result", trunc);
+                    }
+                    snap.put("result", trunc);
+                }
+                case "CHART_SPEC" -> snap.put("chart", truncateChart(p));
+                case "VIS_SPEC" -> {
+                    if (snapVizs.size() < 6) {
+                        snapVizs.add(p);
+                    }
+                }
+                case "RUN_FINISHED" -> {
+                    snap.put("followUps", p.get("followUps"));
+                    snap.put("traceId", p.get("traceId"));
+                }
+                default -> { }
+            }
+        } catch (Exception ignore) {
+            // 快照收集失败不影响本次推送
+        }
+    }
+
+    /** 表格载荷截断：rows 存前 20 行、剔 sqlSnapshot，保证 payload_json 体积可控 */
+    private Map<String, Object> truncateTable(Map<String, Object> p) {
+        Map<String, Object> out = new LinkedHashMap<>(p);
+        if (out.get("rows") instanceof List<?> rows && rows.size() > 20) {
+            out.put("rows", new ArrayList<>(rows.subList(0, 20)));
+        }
+        if (out.get("stats") instanceof Map<?, ?> stats) {
+            Map<String, Object> s = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : stats.entrySet()) {
+                if (!"sqlSnapshot".equals(e.getKey())) {
+                    s.put(String.valueOf(e.getKey()), e.getValue());
+                }
+            }
+            out.put("stats", s);
+        }
+        return out;
+    }
+
+    /** 图表快照只保留 chartType/chartAlternatives/notes（前端红线：自构 option 不消费 spec） */
+    private Map<String, Object> truncateChart(Map<String, Object> p) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("chartType", p.get("chartType"));
+        out.put("chartAlternatives", p.get("chartAlternatives"));
+        out.put("notes", p.get("notes"));
+        return out;
+    }
+
+    /** 运行帧快照（落库前由调用方补充 answer/forcedTool），供会话恢复 hydrate */
+    public Map<String, Object> snapshot() {
+        snap.put("tools", new ArrayList<>(snapTools));
+        snap.put("visualizations", new ArrayList<>(snapVizs));
+        return snap;
     }
 
     private void closeTextMessage(List<AguiEvent> out) {

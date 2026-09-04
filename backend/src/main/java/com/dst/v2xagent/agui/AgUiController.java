@@ -114,6 +114,13 @@ public class AgUiController {
         return Map.of("success", true);
     }
 
+    /** 运营侧 Copilot 工具目录（用户选择工具下拉数据源，静态清单不鉴权敏感信息） */
+    @GetMapping("/copilot/tools")
+    public List<Map<String, Object>> copilotTools(HttpServletRequest request) {
+        permission(request); // 需登录
+        return com.dst.v2xagent.copilot.CopilotToolCatalog.asMaps();
+    }
+
     private PermissionContext permission(HttpServletRequest request) {
         return (PermissionContext) request.getAttribute(AuthFilter.ATTR_PERMISSION);
     }

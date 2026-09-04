@@ -13,10 +13,15 @@ export function useAguiStream() {
   const followUpSuggestions = ref([])
   const visualizations = ref([])
   const traceSteps = ref([])
+  // 思考过程（THINKING 帧：GLM reasoning_content 流式增量）
+  const thinkingText = ref('')
+  const thinkingActive = ref(false)
 
   let handle = null
   let pendingDelta = ''
   let flushScheduled = false
+  let pendingThink = ''
+  let thinkFlushScheduled = false
 
   function reset() {
     phase.value = 'idle'
@@ -31,8 +36,12 @@ export function useAguiStream() {
     followUpSuggestions.value = []
     visualizations.value = []
     traceSteps.value = []
+    thinkingText.value = ''
+    thinkingActive.value = false
     pendingDelta = ''
     flushScheduled = false
+    pendingThink = ''
+    thinkFlushScheduled = false
   }
 
   // 90ms 节流 + rAF 渲染，避免流式刷新卡顿
@@ -44,6 +53,19 @@ export function useAguiStream() {
         answer.value += pendingDelta
         pendingDelta = ''
         flushScheduled = false
+      })
+    }, 90)
+  }
+
+  // 思考文本节流（同 answer 模式）
+  function scheduleThinkFlush() {
+    if (thinkFlushScheduled) return
+    thinkFlushScheduled = true
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        thinkingText.value += pendingThink
+        pendingThink = ''
+        thinkFlushScheduled = false
       })
     }, 90)
   }
@@ -94,6 +116,18 @@ export function useAguiStream() {
         phase.value = 'answering'
         pendingDelta += payload.delta || ''
         scheduleFlush()
+        break
+      case 'THINKING':
+        // 思考帧：phase=start/delta/end，delta 流式追加
+        if (payload && payload.phase === 'start') {
+          thinkingActive.value = true
+        } else if (payload && payload.phase === 'delta') {
+          pendingThink += payload.delta || ''
+          scheduleThinkFlush()
+        } else if (payload && payload.phase === 'end') {
+          if (pendingThink) { thinkingText.value += pendingThink; pendingThink = '' }
+          thinkingActive.value = false
+        }
         break
       case 'RUN_FINISHED':
         if (pendingDelta) { answer.value += pendingDelta; pendingDelta = '' }
@@ -146,13 +180,23 @@ export function useAguiStream() {
     }
   }
 
-  function start(question, profileId, threadId) {
+  // opts.history: 多轮上下文 [{role, content}]；opts.forcedTool: 用户指定工具 id
+  function start(question, profileId, threadId, opts) {
     reset()
     phase.value = 'understanding'
-    handle = runAgui({ question, profileId: profileId || 'fleet_copilot', threadId }, {
+    const o = opts || {}
+    handle = runAgui({
+      question,
+      profileId: profileId || 'fleet_copilot',
+      threadId,
+      history: o.history,
+      forcedTool: o.forcedTool
+    }, {
       onEvent,
       onDone() {
         if (pendingDelta) { answer.value += pendingDelta; pendingDelta = '' }
+        if (pendingThink) { thinkingText.value += pendingThink; pendingThink = '' }
+        thinkingActive.value = false
         if (phase.value !== 'error' && phase.value !== 'cancelled') phase.value = 'done'
       },
       onError(err) {
@@ -168,6 +212,8 @@ export function useAguiStream() {
   function cancel() {
     if (handle) handle.abort()
     if (pendingDelta) { answer.value += pendingDelta; pendingDelta = '' }
+    if (pendingThink) { thinkingText.value += pendingThink; pendingThink = '' }
+    thinkingActive.value = false
     if (phase.value !== 'done' && phase.value !== 'error') phase.value = 'cancelled'
   }
 
@@ -193,7 +239,8 @@ export function useAguiStream() {
   return {
     phase, tools, answer, result, runId, traceId, errorMsg, feedbackGiven,
     clarify, followUpSuggestions, visualizations, traceSteps,
+    thinkingText, thinkingActive,
     toolCallCount, isRunning,
-    start, cancel, rerun, rate
+    start, cancel, rerun, rate, onEvent
   }
 }

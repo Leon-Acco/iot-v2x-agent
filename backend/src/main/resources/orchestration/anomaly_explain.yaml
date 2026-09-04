@@ -1,4 +1,4 @@
-# 车辆异常解释编排模板（设计文档 §5.9：模型只选模板 id，不自由多跳）
+# 车辆异常解释编排模板（基于 TBOX 表）
 id: anomaly_explain
 display: 车辆异常解释
 input: { vehicle: required, time_range: "default=近7天" }
@@ -13,8 +13,13 @@ steps:
     params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
     parallel_group: 1
     required: true
-  - id: mileage
-    capability: mileage_daily
+  - id: trips
+    capability: trip_detail
+    params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
+    parallel_group: 1
+    required: false
+  - id: faults
+    capability: fault_list
     params: { vehicle: "${input.vehicle}", vin_list: "${input.vin_list}", time_range: "${input.time_range}" }
     parallel_group: 1
     required: false

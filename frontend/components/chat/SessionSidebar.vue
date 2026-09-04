@@ -16,6 +16,10 @@
         @click="$emit('select', s.id)"
       >
         <span class="session-title">{{ s.title }}</span>
+        <span class="sess-ops" @click.stop>
+          <button class="op-btn" type="button" title="重命名" @click="rename(s)">✎</button>
+          <button class="op-btn del" type="button" title="删除" @click="$emit('delete', s.id)">✕</button>
+        </span>
       </div>
     </div>
   </aside>
@@ -27,7 +31,13 @@ defineProps({
   activeId: { type: String, default: '' },
   folded: { type: Boolean, default: false }
 })
-defineEmits(['create', 'select', 'fold'])
+const emit = defineEmits(['create', 'select', 'fold', 'rename', 'delete'])
+
+// 行内重命名：确认弹窗输入新标题（同步到后端 /ag-ui/sessions/{id}/rename）
+function rename(s) {
+  const title = window.prompt('重命名会话', s.title)
+  if (title && title.trim()) emit('rename', s.id, title.trim())
+}
 </script>
 
 <style scoped>
@@ -60,6 +70,17 @@ defineEmits(['create', 'select', 'fold'])
 .sess:hover { background: var(--field); color: var(--ink); }
 .sess.on { background: rgba(23, 160, 94, .12); color: var(--green-ink); font-weight: 600; }
 .session-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess { display: flex; align-items: center; gap: 4px; }
+.sess-ops { display: none; margin-left: auto; flex: 0 0 auto; }
+.sess:hover .sess-ops { display: inline-flex; gap: 2px; }
+.op-btn {
+  width: 20px; height: 20px; border: none; border-radius: 6px;
+  background: transparent; color: var(--t3); font-size: 11px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.op-btn:hover { background: rgba(23, 160, 94, .14); color: var(--green-ink); }
+.op-btn.del:hover { background: rgba(220, 38, 38, .12); color: #dc2626; }
+.sess:hover .session-title { max-width: calc(100% - 48px); }
 
 /* ≤1180：会话栏转横向胶囊条，整条自身横滚（滚动容器化后 min-content 归零，不再撑开页面；对齐 v3a 预览） */
 @media (max-width: 1180px) {

@@ -59,6 +59,9 @@ onMounted(() => {
   }
   tick()
   timer = setInterval(tick, 1000)
+  // 菜单折叠态从 localStorage 恢复（刷新不重置）
+  navFolded.value = localStorage.getItem('v2x.nav.folded') === '1'
+  document.body.classList.toggle('folded-nav', navFolded.value)
 })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
@@ -66,6 +69,7 @@ const navFolded = ref(false)
 function toggleNav() {
   navFolded.value = !navFolded.value
   document.body.classList.toggle('folded-nav', navFolded.value)
+  try { localStorage.setItem('v2x.nav.folded', navFolded.value ? '1' : '') } catch (e) { /* ignore */ }
 }
 </script>
 

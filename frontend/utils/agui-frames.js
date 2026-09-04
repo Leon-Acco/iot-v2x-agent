@@ -77,15 +77,23 @@ export async function parseStream(reader, onFrame) {
 }
 
 // 发起一次 AG-UI 运行，返回 { runId, abort }
+// req.history: [{role:'user'|'assistant', content}] 多轮上下文（后端取最近 12 条）
+// req.forcedTool: 用户指定工具 id（强制路由，后端跳过 Supervisor）
 export function runAgui(req, handlers) {
   const controller = new AbortController()
   const runId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '')
   const profileId = req.profileId || 'fleet_copilot'
+  const history = (req.history || []).slice(-12).map((m, i) => ({
+    id: runId + '-h' + i,
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: String(m.content || '')
+  })).filter(m => m.content)
   const body = {
     threadId: req.threadId || runId,
     runId,
-    messages: [{ id: runId + '-u', role: 'user', content: req.question }]
+    messages: history.concat([{ id: runId + '-u', role: 'user', content: req.question }])
   }
+  if (req.forcedTool) body.forwardedProps = { forcedTool: req.forcedTool }
 
   ;(async () => {
     try {
@@ -118,6 +126,25 @@ export function runAgui(req, handlers) {
       fetch('/ag-ui/run/' + runId + '/cancel', { method: 'POST' }).catch(() => {})
     }
   }
+}
+
+// 断线重放：从 Redis 事件缓冲全量重放（浏览器刷新后补帧，TTL 10 分钟内有效）
+// 返回 { close }；onFrame 与 useAguiStream.onEvent 签名一致
+export function replayRun(runId, onFrame, onFinish) {
+  const es = new EventSource('/ag-ui/run/' + encodeURIComponent(runId) + '/replay')
+  es.onmessage = (ev) => {
+    try {
+      const wrapped = JSON.parse(ev.data)
+      // Redis 缓冲条目 {id, type, payload:<官方AguiEvent>}，payload 过帧归一化
+      const norm = normalizeFrame(wrapped.payload || wrapped)
+      if (norm) onFrame(norm[0], norm[1])
+    } catch (e) { /* 单帧解析失败跳过 */ }
+  }
+  es.onerror = () => {
+    // 重放结束（complete 触发 error）或超时：交给上层收尾
+    if (onFinish) onFinish()
+  }
+  return { close: () => es.close() }
 }
 
 // 参数微调重跑：直接调执行器，不走模型

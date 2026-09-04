@@ -71,9 +71,13 @@ public class CapabilityService {
     /** 管理后台试跑（dry-run）：同样走完整管线与护栏，且走审计（由调用方记） */
     public InvokeOutcome dryRun(String capabilityId, Map<String, Object> rawParams, PermissionContext ctx) {
         CapabilityDefinition def = registry.require(capabilityId);
+        // 编排型无独立 SQL 模板，试跑走 invoke 的编排执行器（子能力自带护栏）
+        if ("orchestration".equals(def.getKind())) {
+            return invoke(capabilityId, rawParams, ctx);
+        }
         ParamResolver.ResolvedParams resolved = paramResolver.resolve(def, rawParams, ctx, ZonedDateTime.now());
         // dry-run 同样过防火墙（管理员试跑也不越权）
-        firewall.check(def, resolved, ctx);
+        firewall.checkForDryRun(def, resolved, ctx);
         TableResult table = executor.execute(def, resolved, ctx);
         RenderChartTool.ChartSpec chart = renderChartTool.render(def, table);
         return new InvokeOutcome(def, resolved, table, chart);

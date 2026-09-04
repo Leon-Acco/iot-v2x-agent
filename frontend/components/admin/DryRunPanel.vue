@@ -1,8 +1,14 @@
 <template>
-  <!-- 在线试跑：参数 JSON -> 真实 SQL / 行数 / 耗时 / 前 20 行 -->
+  <!-- 在线试跑：自动填充真实样例参数（权限内车牌/近7天），开箱有数据 -->
   <div class="dry-run">
-    <div class="field-label">参数（JSON）</div>
+    <div class="field-row">
+      <div class="field-label">参数（JSON）</div>
+      <button class="btn sample-btn" :disabled="sampling" @click="fillSample">
+        {{ sampling ? '填充中…' : '重新填充样例' }}
+      </button>
+    </div>
     <textarea v-model="paramsText" class="params-editor" rows="6" spellcheck="false"></textarea>
+    <div v-if="sampleNote" class="sample-note">{{ sampleNote }}</div>
     <div v-if="parseError" class="dry-error">{{ parseError }}</div>
     <button class="btn btn-primary run-btn" :disabled="running" @click="doRun">
       {{ running ? '试跑中…' : '试跑' }}
@@ -30,6 +36,8 @@ const api = useApi()
 
 const paramsText = ref('{}')
 const running = ref(false)
+const sampling = ref(false)
+const sampleNote = ref('')
 const parseError = ref('')
 const result = ref(null)
 
@@ -38,47 +46,68 @@ const tableColumns = computed(() => {
   const cols = result.value && Array.isArray(result.value.columns) ? result.value.columns : []
   return cols.map(c => typeof c === 'string' ? { name: c, display: c } : c)
 })
-const previewRows = computed(() => {
-  const rows = result.value && Array.isArray(result.value.rows) ? result.value.rows : []
-  return rows.slice(0, 20)
-})
+const previewRows = computed(() => result.value && Array.isArray(result.value.rows) ? result.value.rows : [])
+
+// 填充样例参数：daterange→近N天、车辆→权限内真实车牌/VIN
+async function fillSample() {
+  sampling.value = true
+  sampleNote.value = ''
+  try {
+    const data = await api.get('/admin/capabilities/' + encodeURIComponent(props.capabilityId) + '/sample-params')
+    paramsText.value = JSON.stringify(data || {}, null, 2)
+    sampleNote.value = Object.keys(data || {}).length
+      ? '已填充权限内真实样例，可直接试跑'
+      : '该能力无需参数，可直接试跑'
+  } catch (e) {
+    sampleNote.value = ''
+  } finally {
+    sampling.value = false
+  }
+}
 
 async function doRun() {
   parseError.value = ''
-  let params = {}
+  let params
   try {
-    params = paramsText.value.trim() ? JSON.parse(paramsText.value) : {}
+    params = JSON.parse(paramsText.value || '{}')
   } catch (e) {
-    parseError.value = 'JSON 解析失败：' + e.message
+    parseError.value = 'JSON 格式错误：' + e.message
     return
   }
   running.value = true
-  result.value = null
   try {
     result.value = await api.post('/admin/capabilities/' + encodeURIComponent(props.capabilityId) + '/dry-run', { params })
   } catch (e) {
-    parseError.value = e.message
+    parseError.value = e.message || '试跑失败'
   } finally {
     running.value = false
   }
 }
+
+onMounted(fillSample)
 </script>
 
 <style scoped>
-.field-label { font-size: 12px; color: var(--text-2); margin: 12px 0 6px; }
+.dry-run { display: flex; flex-direction: column; gap: 10px; }
+.field-row { display: flex; align-items: center; justify-content: space-between; }
+.field-label { font-size: 12px; color: var(--text-3); }
+.sample-btn { font-size: 11px; padding: 3px 10px; }
+.sample-note { font-size: 11px; color: var(--primary-deep); }
 .params-editor {
-  width: 100%; font-family: "SF Mono", Consolas, monospace; font-size: 12px;
-  padding: 10px; border: 1px solid #E5E5E5; border-radius: 8px;
-  background: #F3F3F5; outline: none; resize: vertical;
+  width: 100%; font-family: "SF Mono", Consolas, monospace; font-size: 12px; line-height: 1.6;
+  padding: 10px 12px; border: 1px solid #E5E5E5; border-radius: 8px; outline: none;
+  background: #F9FAFB; resize: vertical;
 }
-.dry-error { color: var(--danger); font-size: 12px; margin-top: 6px; }
-.run-btn { margin-top: 10px; }
-.result-meta { display: flex; gap: 6px; margin-top: 14px; }
-.pill { font-size: 11px; color: var(--text-3); background: #F3F4F6; border-radius: 20px; padding: 3px 10px; }
-.pill.warn { color: var(--warning); background: rgba(245,158,11,.1); }
+.params-editor:focus { border-color: var(--primary); }
+.dry-error { color: var(--danger); font-size: 12px; }
+.run-btn { align-self: flex-start; }
+.result-meta { display: flex; gap: 8px; }
+.pill { font-size: 11px; padding: 3px 10px; border-radius: 10px; background: var(--primary-light); color: var(--primary-deep); }
+.pill.warn { background: #fffbeb; color: #b45309; }
 .sql-view {
-  background: #111827; color: #E5E7EB; font-size: 11px; padding: 10px;
-  border-radius: 8px; white-space: pre-wrap; word-break: break-all;
-  max-height: 200px; overflow-y: auto; margin: 0;
+  background: #0F1B2D; color: #d7e4dd; font-family: "SF Mono", Consolas, monospace;
+  font-size: 12px; line-height: 1.7; padding: 12px 14px; border-radius: 8px;
+  overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+  max-height: 220px; overflow-y: auto;
 }
 </style>

@@ -19,13 +19,28 @@ public final class SpecialistAgents {
 
     /** 构建某领域的专家 Agent */
     public static ReActAgent build(Domain domain, CopilotTools tools, VisualizationTools vizTools, Model model) {
+        return build(domain, tools, vizTools, model, null);
+    }
+
+    /**
+     * 构建某领域的专家 Agent；forcedTool 非空时注入"用户指定工具"指令
+     * （强制路由：LLM 只负责把自然语言问题转成该工具参数，不再自由选工具）。
+     */
+    public static ReActAgent build(Domain domain, CopilotTools tools, VisualizationTools vizTools, Model model,
+                                   String forcedTool) {
         Toolkit toolkit = new Toolkit();
         toolkit.registration().tool(tools).enableTools(toolNames(domain)).apply();
         // 可视化/计算工具对所有专家开放
         toolkit.registration().tool(vizTools).apply();
+        String sysPrompt = prompt(domain);
+        if (forcedTool != null && !forcedTool.isBlank()) {
+            sysPrompt = sysPrompt + "\n8. 本轮用户已通过界面指定工具 " + forcedTool
+                    + "。你必须首先调用该工具完成本轮任务：只把用户的自然语言问题转换成该工具的参数"
+                    + "（时间范围/车辆等）；参数不足时先追问；除非用户明确要求，否则不要调用其他查询工具。";
+        }
         return ReActAgent.builder()
                 .name("v2x-" + domain.name().toLowerCase() + "-agent")
-                .sysPrompt(prompt(domain))
+                .sysPrompt(sysPrompt)
                 .model(model)
                 .toolkit(toolkit)
                 .maxIters(6)

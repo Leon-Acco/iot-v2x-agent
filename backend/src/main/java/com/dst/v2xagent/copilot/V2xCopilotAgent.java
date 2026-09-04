@@ -141,6 +141,30 @@ public class V2xCopilotAgent implements Agent {
         try {
             sink.emit(AgUiEvent.runStarted(input.runId(), input.threadId(), traceId));
 
+            // 强制路由：用户通过界面指定工具（forwardedProps 仅影响路由选择，不参与鉴权）
+            String forcedTool = forcedToolOf(input.forwardedProps());
+            if (forcedTool != null) {
+                if (!CopilotToolCatalog.exists(forcedTool)) {
+                    sink.emitText("不支持的工具: " + forcedTool);
+                    finishOk(sink, input, traceId, defaultFollowUps());
+                    return;
+                }
+                routeTag = "forced";
+                sink.emit(AgUiEvent.stepStarted("route", "已指定工具，直接执行"));
+                sink.emit(AgUiEvent.stepFinished("route"));
+                sink.emit(AgUiEvent.of("AGENT_ROUTE", Map.of(
+                        "route", "forced", "reason", "用户指定工具",
+                        "vehicle", "", "forcedTool", forcedTool)));
+                SpecialistAgents.Domain forcedDomain = CopilotToolCatalog.domainOf(forcedTool);
+                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                             com.dst.v2xagent.observability.trace.TraceContext.span("agent", "forced:" + forcedTool)) {
+                    specialistRun(forcedDomain, history, ctx, sink, conclusion, input.runId(), forcedTool);
+                }
+                persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion, forcedTool, sink);
+                finishOk(sink, input, traceId, followUpsFor(routeTag));
+                return;
+            }
+
             String smallTalk = smallTalkReply(input.question());
             if (smallTalk != null) {
                 sink.emitText(smallTalk);
@@ -186,11 +210,11 @@ public class V2xCopilotAgent implements Agent {
                 };
                 try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
-                    specialistRun(domain, history, ctx, sink, conclusion, input.runId());
+                    specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
                 }
             }
 
-            persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion);
+            persistTurn(ctx, sessionId, input, routeTag, rowCount, conclusion, null, sink);
             finishOk(sink, input, traceId, followUpsFor(routeTag));
         } catch (CancelledException e) {
             status = "CANCELLED";
@@ -219,17 +243,17 @@ public class V2xCopilotAgent implements Agent {
         }
     }
 
-    /** 专家路径：构建领域 ReActAgent，驱动事件流并翻译为 AG-UI 事件 */
+    /** 专家路径：构建领域 ReActAgent，驱动事件流并翻译为 AG-UI 事件；forcedTool 非空时注入指定工具指令 */
     private void specialistRun(SpecialistAgents.Domain domain, List<Msg> history,
                                PermissionContext ctx, AguiFluxSink sink,
-                               StringBuilder conclusion, String runId) {
+                               StringBuilder conclusion, String runId, String forcedTool) {
         ToolResultBridge bridge = new ToolResultBridge(sink, runtime.charts());
         CopilotTools tools = new CopilotTools(queries, ctx, bridge);
         VisualizationTools vizTools = new VisualizationTools(bridge);
         Model model = AgentScopeModels.concludeModel(runtime.llm().activeProvider());
         sink.emit(AgUiEvent.stepStarted("invoke", "专家 Agent 正在分析"));
         checkCancelled(runId);
-        try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, model)) {
+        try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, model, forcedTool)) {
             agent.streamEvents(history)
                     .doOnNext(ev -> translateAgentEvent(ev, sink, conclusion))
                     .blockLast(Duration.ofSeconds(180));
@@ -238,12 +262,20 @@ public class V2xCopilotAgent implements Agent {
         sink.emit(AgUiEvent.stepFinished("invoke"));
     }
 
-    /** AgentScope 事件 -> 前端事件：文本增量直接流式转发（表格/图表由工具桥推送） */
+    /** AgentScope 事件 -> 前端事件：文本增量直接流式转发（表格/图表由工具桥推送），思考块转 THINKING 帧 */
     private void translateAgentEvent(io.agentscope.core.event.AgentEvent ev, AguiFluxSink sink,
                                      StringBuilder conclusion) {
         if (ev instanceof TextBlockDeltaEvent t) {
             conclusion.append(t.getDelta());
             sink.emitText(t.getDelta());
+        } else if (ev instanceof io.agentscope.core.event.ThinkingBlockStartEvent) {
+            log.debug("copilot thinking block started");
+            sink.emit(AgUiEvent.of("THINKING_START", Map.of()));
+        } else if (ev instanceof io.agentscope.core.event.ThinkingBlockDeltaEvent d) {
+            sink.emit(AgUiEvent.of("THINKING_DELTA",
+                    Map.of("delta", d.getDelta() == null ? "" : d.getDelta())));
+        } else if (ev instanceof io.agentscope.core.event.ThinkingBlockEndEvent) {
+            sink.emit(AgUiEvent.of("THINKING_END", Map.of()));
         } else if (ev instanceof ExceedMaxItersEvent) {
             String note = "\n\n（分析过程较长，已基于目前数据给出结论）";
             conclusion.append(note);
@@ -438,18 +470,35 @@ public class V2xCopilotAgent implements Agent {
     }
 
     private void persistTurn(PermissionContext ctx, String sessionId, RunOrchestrator.RunInput input,
-                             String routeTag, Integer rowCount, StringBuilder conclusion) {
+                             String routeTag, Integer rowCount, StringBuilder conclusion,
+                             String forcedTool, AguiFluxSink sink) {
         try {
+            // 完整帧快照（tools/result/chart/visualizations/followUps/traceId）+ answer/forcedTool
+            Map<String, Object> payload = sink.snapshot();
+            payload.put("answer", conclusion.toString());
+            payload.put("forcedTool", forcedTool);
             runtime.sessions().appendTurn(ctx.tenantId(), sessionId, input.question(),
                     routeTag == null ? null : "copilot:" + routeTag,
                     null, rowCount, conclusion.toString(),
-                    conclusion.length() > 200 ? conclusion.substring(0, 200) : conclusion.toString());
+                    conclusion.length() > 200 ? conclusion.substring(0, 200) : conclusion.toString(),
+                    payload);
+            // 首轮自动命名会话标题
+            runtime.sessions().touchTitleIfBlank(ctx.tenantId(), sessionId, input.question());
             // 记忆提取：任务摘要 / 用户偏好 / 异常模式沉淀（Memory 是线索不是事实）
             runtime.memoryExtractor().extractAndRemember(ctx.tenantId(), ctx.userId(), input.question(),
                     conclusion.toString(), routeTag == null ? "TASK" : "copilot:" + routeTag, java.util.List.of());
         } catch (Exception e) {
             log.warn("session persist failed (ignored): {}", e.getMessage());
         }
+    }
+
+    /** forwardedProps 中读取用户指定工具（仅影响路由选择，不参与鉴权） */
+    private String forcedToolOf(Map<String, Object> forwardedProps) {
+        if (forwardedProps == null) {
+            return null;
+        }
+        Object v = forwardedProps.get("forcedTool");
+        return v == null || String.valueOf(v).isBlank() ? null : String.valueOf(v);
     }
 
     private void finishOk(AguiFluxSink sink, RunOrchestrator.RunInput input, String traceId,
@@ -487,6 +536,7 @@ public class V2xCopilotAgent implements Agent {
             case "mileage" -> List.of("各车队里程对比", "看看充电统计");
             case "vehicle" -> List.of("它的最后位置在哪", "离线超 24 小时的车有哪些");
             case "anomaly" -> List.of("看看它的告警明细", "换成近 30 天再分析一次");
+            case "forced" -> List.of("换个时间范围再查一次", "切回智能路由继续追问");
             default -> defaultFollowUps();
         };
     }

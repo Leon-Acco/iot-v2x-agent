@@ -29,6 +29,8 @@ public class LlmProperties {
         private String apiKey;
         private String extractModel;
         private String concludeModel;
+        /** 是否开启思考模式（GLM thinking 参数，透传请求体 {thinking:{type:enabled}}）；null/false = 关闭 */
+        private Boolean thinkingEnabled;
     }
 
     @Data

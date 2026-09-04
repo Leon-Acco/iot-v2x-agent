@@ -6,7 +6,7 @@
   value_column: alarm_count
   aggregate: sum
   dimensions: [alarm_type]
-  dimension_columns: {alarm_type: alarm_type}
+  dimension_columns: {alarm_type: alarm_name}
 
 - id: fault.count
   name: 故障次数
@@ -51,16 +51,6 @@
   unit: kwh
   capability: charge_daily
   value_column: charge_total
-  aggregate: sum
-  dimensions: [day]
-  dimension_columns: {day: query_date}
-
-- id: trip.daily
-  name: 日行程数
-  description: 车辆每日行程数量
-  unit: count
-  capability: trip_daily
-  value_column: drive_times
   aggregate: sum
   dimensions: [day]
   dimension_columns: {day: query_date}

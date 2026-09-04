@@ -83,4 +83,86 @@ public final class PromptBuilder {
             3. 先给结论，再给关键数据支撑；3~6 句话以内，使用 Markdown。
             4. 如果数据为空，直接说明该条件下没有数据，并建议调整时间或范围。
             """;
+
+    // ==================== capability AI generation (capability factory) ====================
+
+    /** GEN_SYSTEM: table schemas + user description -> strict CapabilityDefinition JSON */
+    public static final String GEN_SYSTEM = """
+            You are the capability factory of a connected-vehicle data platform.
+            Given the user's requirement and the provided table schemas, design ONE data query capability and output strict JSON.
+            Hard rules (must follow):
+            1. Use ONLY the provided tables and columns. Never invent tables or columns.
+            2. sql_template MUST contain the ACL placeholder ${acl_org_ids}, typically:
+               t.vin_code IN (SELECT vin_code FROM basic_vehicle_info WHERE org_name IN (${acl_org_ids}))
+               If the main table has no vin_code column, JOIN basic_vehicle_info first.
+            3. sql_template MUST contain LIMIT (<= 500). SELECT * is forbidden.
+            4. If the query has a time range, declare a daterange param named time_range and use ${time_from} / ${time_to} in SQL.
+            5. Vehicle filter convention: AND (${vin_list_empty} OR t.vin_code IN (${vin_list})), with params vehicle (string, optional) and vin_list (array<string>, optional).
+            6. Every ${placeholder} except acl_* must correspond to a declared param (a daterange param yields time_from/time_to; an array param x also yields x_empty).
+            7. returns.columns must match the SQL output columns one-to-one; semantic in time/category/metric/geo_lng/geo_lat/id.
+            8. chart_hint in table/bar/line/pie/area/scatter/map/metric_card.
+            9. row_filter_policy = by_org; scopes like vehicle.<domain>.read; id in snake_case English, unique, not colliding with existing ids.
+            10. display / description / aliases / sample_questions MUST be Simplified Chinese.
+            Output JSON only, no explanation.
+            """;
+
+    /** GEN user prompt: existing ids (anti-collision) + table schemas + requirement */
+    public static String genUserPrompt(String description, String schemaText, List<String> existingIds) {
+        return "Existing capability ids (do not reuse): " + String.join(", ", existingIds)
+                + "\n\nAvailable table schemas:\n" + schemaText
+                + "\nUser requirement:\n" + description;
+    }
+
+    /** GEN output JSON Schema (snake_case fields, same source as yaml/Java model) */
+    public static String genOutputSchema() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put("id", Map.of("type", "string"));
+        props.put("display", Map.of("type", "string"));
+        props.put("description", Map.of("type", "string"));
+        props.put("aliases", Map.of("type", "array", "items", Map.of("type", "string")));
+        props.put("domain", Map.of("type", "string"));
+        props.put("params", Map.of("type", "array", "items", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "name", Map.of("type", "string"),
+                        "type", Map.of("type", "string", "enum", List.of("string", "int", "number", "boolean", "daterange", "array<string>")),
+                        "required", Map.of("type", "boolean"),
+                        "description", Map.of("type", "string"),
+                        "max_span_days", Map.of("type", "integer"),
+                        "max_items", Map.of("type", "integer"),
+                        "default_value", Map.of("type", "string")),
+                "required", List.of("name", "type"))));
+        props.put("returns", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "shape", Map.of("type", "string", "enum", List.of("table", "metric", "geo")),
+                        "columns", Map.of("type", "array", "items", Map.of(
+                                "type", "object",
+                                "properties", Map.of(
+                                        "name", Map.of("type", "string"),
+                                        "semantic", Map.of("type", "string", "enum", List.of("time", "category", "metric", "geo_lng", "geo_lat", "id")),
+                                        "display", Map.of("type", "string"),
+                                        "unit", Map.of("type", "string"),
+                                        "scale", Map.of("type", "integer")),
+                                "required", List.of("name", "semantic")))),
+                "required", List.of("columns")));
+        props.put("chart_hint", Map.of("type", "string"));
+        props.put("source_tables", Map.of("type", "array", "items", Map.of("type", "string")));
+        props.put("limits", Map.of("type", "object"));
+        props.put("scopes", Map.of("type", "array", "items", Map.of("type", "string")));
+        props.put("row_filter_policy", Map.of("type", "string", "enum", List.of("by_org", "by_fleet", "by_vin")));
+        props.put("sample_questions", Map.of("type", "array", "items", Map.of("type", "string")));
+        props.put("sql_template", Map.of("type", "string"));
+        schema.put("properties", props);
+        schema.put("required", List.of("id", "display", "description", "domain", "params", "returns",
+                "chart_hint", "source_tables", "scopes", "row_filter_policy", "sample_questions", "sql_template"));
+        schema.put("additionalProperties", true);
+        try {
+            return MAPPER.writeValueAsString(schema);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
 }

@@ -34,33 +34,87 @@ public final class EchartsSpecBuilder {
         };
     }
 
-    /** 折线/柱状：col0=x，其余列为系列 */
+    /** 折线/柱状：col0=x，其余列为系列；col0 为日期时用 time 轴（排序 + 日期格式化 + 长序列 dataZoom） */
     private static Map<String, Object> cartesian(String title,
                                                  List<String> columns, List<List<Object>> rows, String seriesType) {
+        boolean timeAxis = "line".equals(seriesType) && isDateColumn(rows);
+        if (timeAxis) {
+            // 日期列先排序再渲染，避免乱序输入导致折线回折
+            rows = new ArrayList<>(rows);
+            rows.sort((a, b) -> String.valueOf(cell(a, 0)).compareTo(String.valueOf(cell(b, 0))));
+        }
         List<Object> x = new ArrayList<>();
         for (List<Object> r : rows) {
             x.add(cell(r, 0));
         }
         List<Object> series = new ArrayList<>();
         for (int c = 1; c < width(columns, rows); c++) {
-            List<Object> vals = new ArrayList<>();
-            for (List<Object> r : rows) {
-                vals.add(num(cell(r, c)));
-            }
             Map<String, Object> s = new LinkedHashMap<>();
             s.put("name", c < columns.size() ? columns.get(c) : "series" + c);
             s.put("type", seriesType);
-            s.put("data", vals);
+            if (timeAxis) {
+                // time 轴数据须配对 [x, value]（xAxis 不带 data）
+                List<Object> pairs = new ArrayList<>();
+                for (List<Object> r : rows) {
+                    pairs.add(List.of(String.valueOf(cell(r, 0)), num(cell(r, c))));
+                }
+                s.put("data", pairs);
+            } else {
+                List<Object> vals = new ArrayList<>();
+                for (List<Object> r : rows) {
+                    vals.add(num(cell(r, c)));
+                }
+                s.put("data", vals);
+            }
             if ("line".equals(seriesType)) {
                 s.put("smooth", true);
             }
             series.add(s);
         }
         Map<String, Object> option = base(title);
-        option.put("xAxis", Map.of("type", "category", "data", x));
+        if (timeAxis) {
+            Map<String, Object> xAxis = new LinkedHashMap<>();
+            xAxis.put("type", "time");
+            xAxis.put("axisLabel", Map.of("formatter", "{MM}-{dd}"));
+            option.put("xAxis", xAxis);
+            if (rows.size() > 30) {
+                option.put("dataZoom", List.of(
+                        Map.of("type", "inside"),
+                        Map.of("type", "slider", "height", 16, "bottom", 30)));
+            }
+        } else {
+            option.put("xAxis", Map.of("type", "category", "data", x));
+        }
         option.put("yAxis", Map.of("type", "value"));
         option.put("series", series);
         return option;
+    }
+
+    /** 判断 col0 是否全为日期值（yyyy-MM-dd 前缀；空值忽略） */
+    private static boolean isDateColumn(List<List<Object>> rows) {
+        int checked = 0;
+        for (List<Object> r : rows) {
+            Object v = cell(r, 0);
+            if (v == null) {
+                continue;
+            }
+            String s = String.valueOf(v);
+            if (s.length() < 10) {
+                return false;
+            }
+            for (int i = 0; i < 10; i++) {
+                char ch = s.charAt(i);
+                boolean ok = switch (i) {
+                    case 4, 7 -> ch == '-';
+                    default -> ch >= '0' && ch <= '9';
+                };
+                if (!ok) {
+                    return false;
+                }
+            }
+            checked++;
+        }
+        return checked > 0;
     }
 
     /** 饼图：col0=名，col1=值 */

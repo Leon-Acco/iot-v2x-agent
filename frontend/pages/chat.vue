@@ -12,23 +12,25 @@
         @create="newSession"
         @select="selectSession"
         @fold="toggleSess"
+        @rename="onRename"
+        @delete="onDeleteSession"
       />
       <WorkCanvas :stream="activeStream" />
       <div class="chat-main">
         <div class="chat-head">
           <span class="ck">对话流</span>
           <span class="ca">设备运营 Agent</span>
+          <button class="export-btn" type="button" @click="exportPdf">导出 PDF</button>
           <span class="cb-live" aria-hidden="true"></span>
         </div>
         <ChatStream
           :messages="messages"
           :follow-ups="followUps"
           :sample-questions="samples"
-          @ask="send"
+          @ask="q => send(q)"
           @edit="onEdit"
           @retry="onRetry"
           @clarify="onClarify"
-          @taskcard="onTaskCard"
         />
         <div class="composer-wrap">
           <ChatComposer ref="composer" :streaming="streaming" @send="send" @stop="onStop" />
@@ -41,6 +43,8 @@
 <script setup>
 const LS_SESSIONS = 'v2x.chat.sessions'
 const LS_PREFIX = 'v2x.chat.'
+const LS_SESS_FOLDED = 'v2x.sess.folded'
+const SS_ACTIVERUN = 'v2x.chat.activerun'
 
 const sessions = ref([])
 const activeId = ref('')
@@ -49,10 +53,11 @@ const composer = ref(null)
 const sessFolded = ref(false)
 let editFromId = null
 
-// 历史会话折叠：body 类驱动（全局 folded-sess 规则收起侧栏并收窄网格）
+// 历史会话折叠：body 类驱动（全局 folded-sess 规则收起侧栏并收窄网格），localStorage 持久化
 function toggleSess() {
   sessFolded.value = !sessFolded.value
   document.body.classList.toggle('folded-sess', sessFolded.value)
+  try { localStorage.setItem(LS_SESS_FOLDED, sessFolded.value ? '1' : '') } catch (e) { /* ignore */ }
 }
 
 const samples = [
@@ -94,37 +99,142 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
 
+async function apiGet(url) {
+  const resp = await fetch(url)
+  if (!resp.ok) throw new Error('HTTP ' + resp.status)
+  return resp.json()
+}
+
+// ---------- 会话数据源（后端优先，localStorage 降级） ----------
+
+/** 拉取后端会话列表（agent_session 落库，服务重启不丢）；空则降级本地/新建 */
+async function loadSessions() {
+  try {
+    const list = await apiGet('/ag-ui/sessions?profileId=fleet_copilot')
+    if (Array.isArray(list) && list.length) {
+      sessions.value = list.map(s => ({
+        id: s.threadId,
+        sessionId: s.sessionId,
+        threadId: s.threadId,
+        title: s.title || '会话',
+        turnCount: s.turnCount,
+        createdAt: Date.parse(s.createdAt || '') || Date.now()
+      }))
+      return
+    }
+  } catch (e) { /* 后端不可用走降级 */ }
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_SESSIONS) || '[]')
+    if (Array.isArray(raw) && raw.length) {
+      sessions.value = raw.map(s => ({ id: s.id, sessionId: null, threadId: s.id, title: s.title || '会话', createdAt: s.createdAt }))
+      return
+    }
+  } catch (e) { /* ignore */ }
+  sessions.value = [{ id: uid(), sessionId: null, threadId: '', title: '新会话', createdAt: Date.now() }]
+  sessions.value[0].threadId = sessions.value[0].id
+}
+
+/** payload 帧快照 -> useAguiStream 完整恢复（answer/tools/result/chart/visualizations） */
+function hydrateStream(m) {
+  const stream = markRaw(useAguiStream())
+  const p = m.payload || {}
+  stream.answer.value = p.answer || String(m.content || '')
+  if (Array.isArray(p.tools)) {
+    stream.tools.value = p.tools.map(t => ({
+      id: t.id, name: t.name, status: t.status || 'done', args: t.args || null,
+      result: t.result || null,
+      summary: t.result && t.result.rowCount != null ? '→ 找到 ' + t.result.rowCount + ' 条' : ''
+    }))
+  }
+  if (p.result && p.result.columns) stream.result.value = p.result
+  if (p.chart && stream.result.value) {
+    stream.result.value = Object.assign({}, stream.result.value, { chart: p.chart })
+  }
+  if (Array.isArray(p.visualizations)) stream.visualizations.value = p.visualizations
+  if (p.traceId) stream.traceId.value = p.traceId
+  if (Array.isArray(p.followUps) && p.followUps.length) stream.followUpSuggestions.value = p.followUps
+  stream.phase.value = 'done'
+  return stream
+}
+
+/** 从后端拉会话消息并重建（VIS_SPEC 帧快照直接重放进 visualizations）；失败降级 localStorage */
+async function loadMessagesRemote(threadId) {
+  const s = sessions.value.find(x => x.threadId === threadId)
+  if (s && s.sessionId) {
+    try {
+      const list = await apiGet('/ag-ui/sessions/' + s.sessionId + '/messages')
+      if (Array.isArray(list)) {
+        const out = []
+        for (const m of list) {
+          if (m.role === 'user') {
+            out.push({ id: uid(), role: 'user', content: String(m.content || '') })
+          } else if (m.role === 'assistant') {
+            out.push({ id: uid(), role: 'ai', question: '', stream: hydrateStream(m) })
+          }
+        }
+        // ai 消息的 question 取前一条 user 内容
+        let lastQ = ''
+        for (const m of out) {
+          if (m.role === 'user') lastQ = m.content
+          else if (m.role === 'ai') m.question = lastQ
+        }
+        return out
+      }
+    } catch (e) { /* 降级 localStorage */ }
+  }
+  return loadMessages(threadId)
+}
+
 function newSession() {
   persist()
   const id = uid()
-  sessions.value.unshift({ id, title: '新会话', createdAt: Date.now() })
-  selectSession(id)
-}
-
-function selectSession(id) {
-  if (id === activeId.value) return
-  persist()
+  sessions.value.unshift({ id, sessionId: null, threadId: id, title: '新会话', createdAt: Date.now() })
   activeId.value = id
-  messages.value = loadMessages(id)
+  messages.value = []
   persistSessions()
 }
 
-function send(q) {
+async function selectSession(threadId) {
+  if (threadId === activeId.value) return
+  persist()
+  activeId.value = threadId
+  messages.value = await loadMessagesRemote(threadId)
+  restoreActiveStream(threadId)
+  persistSessions()
+}
+
+// ---------- 发送 / 多轮上下文 / 强制路由 ----------
+
+/** 发送一条消息：history 携带本会话多轮上下文（user+assistant），forcedTool 为用户指定工具 */
+function send(q, forcedTool) {
   if (!q || streaming.value) return
   if (editFromId) {
     const idx = messages.value.findIndex(m => m.id === editFromId)
     if (idx >= 0) messages.value = messages.value.slice(0, idx + 1)
     editFromId = null
   }
+  const history = messages.value
+    .map(m => m.role === 'user'
+      ? { role: 'user', content: m.content }
+      : { role: 'assistant', content: m.stream.answer.value || '' })
+    .filter(m => m.content)
   const stream = markRaw(useAguiStream())
-  messages.value.push(
-    { id: uid(), role: 'user', content: q },
-    { id: uid(), role: 'ai', question: q, stream }
-  )
-  const s = sessions.value.find(x => x.id === activeId.value)
+  const aiMsg = { id: uid(), role: 'ai', question: q, stream }
+  messages.value.push({ id: uid(), role: 'user', content: q }, aiMsg)
+  const s = sessions.value.find(x => x.threadId === activeId.value)
   if (s && (s.title === '新会话' || !s.title)) s.title = q.slice(0, 18)
-  watch(stream.phase, (p) => { if (p === 'done' || p === 'error' || p === 'cancelled') persist() })
-  stream.start(q, 'fleet_copilot', activeId.value)
+  watch(stream.phase, (p) => {
+    if (p === 'done' || p === 'error' || p === 'cancelled') {
+      persist()
+      useChatWorkspace().untrack(aiMsg.id)
+      clearActiveRun()
+    }
+  })
+  const runId = stream.start(q, 'fleet_copilot', activeId.value, { history, forcedTool })
+  useChatWorkspace().track(aiMsg.id, stream, activeId.value, runId, q)
+  try {
+    sessionStorage.setItem(SS_ACTIVERUN, JSON.stringify({ threadId: activeId.value, runId, question: q, at: Date.now() }))
+  } catch (e) { /* ignore */ }
 }
 
 function onStop() {
@@ -136,25 +246,6 @@ function onEdit(content) {
   const target = [...messages.value].reverse().find(m => m.role === 'user' && m.content === content)
   editFromId = target ? target.id : null
   composer.value && composer.value.setText(content)
-}
-
-// 从查询结果跳转 P3：携带能力/参数/结论上下文
-function onTaskCard(aiMsg) {
-  const res = aiMsg.stream.result.value || {}
-  const tools = aiMsg.stream.tools.value || []
-  const last = tools.length ? tools[tools.length - 1] : null
-  const rawArgs = last && last.args && typeof last.args === 'object' ? last.args : {}
-  const params = {}
-  Object.keys(rawArgs).filter(k => !k.startsWith('_') && !k.startsWith('acl_')).forEach(k => { params[k] = rawArgs[k] })
-  sessionStorage.setItem('v2x.anomaly.context', JSON.stringify({
-    title: aiMsg.question,
-    capabilityId: res.capabilityId || (last && last.id) || '',
-    params,
-    conclusion: aiMsg.stream.answer.value || '',
-    runId: aiMsg.stream.runId.value || '',
-    traceId: aiMsg.stream.traceId.value || ''
-  }))
-  navigateTo('/anomaly')
 }
 
 // 澄清选项：input 类型让用户在输入框补充，其余直接作为追问发送（同会话 threadId 继承上下文）
@@ -170,14 +261,149 @@ function onClarify(option) {
 function onRetry(aiMsg) {
   const idx = messages.value.findIndex(m => m.id === aiMsg.id)
   if (idx < 0) return
+  const history = messages.value.slice(0, idx)
+    .map(m => m.role === 'user'
+      ? { role: 'user', content: m.content }
+      : { role: 'assistant', content: m.stream.answer.value || '' })
+    .filter(m => m.content)
   const fresh = markRaw(useAguiStream())
   messages.value.splice(idx, 1, { id: aiMsg.id, role: 'ai', question: aiMsg.question, stream: fresh })
-  fresh.start(aiMsg.question, 'fleet_copilot', activeId.value)
+  const runId = fresh.start(aiMsg.question, 'fleet_copilot', activeId.value, { history })
+  const msgId = aiMsg.id
+  useChatWorkspace().track(msgId, fresh, activeId.value, runId, aiMsg.question)
+  watch(fresh.phase, (p) => {
+    if (p === 'done' || p === 'error' || p === 'cancelled') {
+      persist()
+      useChatWorkspace().untrack(msgId)
+      clearActiveRun()
+    }
+  })
 }
 
-// 持久化：会话列表 + 当前会话消息快照
+// ---------- 流保持：切页恢复（单例活流）+ 刷新恢复（replay 补帧） ----------
+
+function clearActiveRun() {
+  try { sessionStorage.removeItem(SS_ACTIVERUN) } catch (e) { /* ignore */ }
+}
+
+function bindFinishWatch(msgId, stream) {
+  watch(stream.phase, (p) => {
+    if (p === 'done' || p === 'error' || p === 'cancelled') {
+      persist()
+      useChatWorkspace().untrack(msgId)
+      clearActiveRun()
+    }
+  })
+}
+
+/** 页面重进恢复：场景1 SPA 切页（单例流还活着）→ 直接挂回；场景2 刷新 → replay 补帧 */
+function restoreActiveStream(threadId) {
+  const ws = useChatWorkspace()
+  if (ws.streams.size && ws.activeThread === threadId) {
+    const raw = useNuxtApp().$chatWorkspace
+    let liveMsgId = null
+    let liveStream = null
+    raw.streams.forEach((st, id) => { liveMsgId = id; liveStream = st })
+    if (liveStream) {
+      // 弹掉后端重建的空 assistant 壳（run 未结束未落库的那轮）
+      const last = messages.value[messages.value.length - 1]
+      if (last && last.role === 'ai' && !last.stream.answer.value && !last.stream.tools.value.length) {
+        messages.value.pop()
+      }
+      messages.value.push({ id: liveMsgId, role: 'ai', question: raw.activeQuestion || '', stream: liveStream })
+      bindFinishWatch(liveMsgId, liveStream)
+    }
+    return
+  }
+  replayRestore(threadId)
+}
+
+/** 浏览器刷新恢复：sessionStorage 记录的 runId 从 Redis 事件缓冲全量重放（TTL 10 分钟） */
+function replayRestore(threadId) {
+  let saved = null
+  try { saved = JSON.parse(sessionStorage.getItem(SS_ACTIVERUN) || 'null') } catch (e) { /* ignore */ }
+  if (!saved || saved.threadId !== threadId || !saved.runId) return
+  if (Date.now() - (saved.at || 0) > 10 * 60 * 1000) { clearActiveRun(); return }
+  // 末轮 assistant 已落库（run 已结束）则无需补帧
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'ai' && last.stream.answer.value) { clearActiveRun(); return }
+  if (last && last.role === 'ai' && !last.stream.answer.value) messages.value.pop()
+  const stream = markRaw(useAguiStream())
+  stream.phase.value = 'understanding'
+  stream.runId.value = saved.runId
+  const msg = { id: uid(), role: 'ai', question: saved.question || '', stream }
+  messages.value.push(msg)
+  bindFinishWatch(msg.id, stream)
+  const handle = replayRun(saved.runId, stream.onEvent, () => {
+    // 重放流结束（complete 或超时）：已有内容则收尾为 done，否则取消态
+    if (stream.isRunning.value) {
+      if (stream.answer.value || stream.tools.value.length) stream.phase.value = 'done'
+      else stream.phase.value = 'cancelled'
+    }
+    handle.close()
+  })
+}
+
+// ---------- 会话重命名 / 删除 / 导出 ----------
+
+async function onRename(threadId, title) {
+  const s = sessions.value.find(x => x.threadId === threadId)
+  if (!s || !s.sessionId || !title) return
+  try {
+    await fetch('/ag-ui/sessions/' + s.sessionId + '/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    })
+    s.title = title
+  } catch (e) { /* ignore */ }
+}
+
+async function onDeleteSession(threadId) {
+  const s = sessions.value.find(x => x.threadId === threadId)
+  if (!s) return
+  if (!window.confirm('删除该会话及全部记录？')) return
+  try {
+    if (s.sessionId) await fetch('/ag-ui/sessions/' + s.sessionId, { method: 'DELETE' })
+  } catch (e) { /* ignore */ }
+  sessions.value = sessions.value.filter(x => x.threadId !== threadId)
+  try { localStorage.removeItem(LS_PREFIX + threadId) } catch (e) { /* ignore */ }
+  if (activeId.value === threadId) {
+    if (sessions.value.length) selectSession(sessions.value[0].threadId)
+    else newSession()
+  }
+  persistSessions()
+}
+
+/** 会话级 PDF 导出：多轮对话 + 数据表 + 图表说明（后端 openpdf 生成） */
+async function exportPdf() {
+  const s = sessions.value.find(x => x.threadId === activeId.value)
+  if (!s || !s.sessionId) {
+    window.alert('会话尚未同步到服务端，发送一条消息后再导出')
+    return
+  }
+  try {
+    const resp = await fetch('/ag-ui/sessions/' + s.sessionId + '/export.pdf')
+    if (!resp.ok) throw new Error('HTTP ' + resp.status)
+    const blob = await resp.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'session-' + s.sessionId + '.pdf'
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+  } catch (e) {
+    window.alert('导出失败：' + (e.message || e))
+  }
+}
+
+// ---------- localStorage 快照（降级链兜底） ----------
+
 function persistSessions() {
-  localStorage.setItem(LS_SESSIONS, JSON.stringify(sessions.value))
+  try {
+    localStorage.setItem(LS_SESSIONS, JSON.stringify(sessions.value.map(s => ({
+      id: s.threadId, title: s.title, createdAt: s.createdAt
+    }))))
+  } catch (e) { /* ignore */ }
 }
 
 function persist() {
@@ -185,7 +411,7 @@ function persist() {
   const snapshot = messages.value.map(m => m.role === 'user'
     ? { role: 'user', content: m.content }
     : { role: 'ai', question: m.question, answer: m.stream.answer.value, result: m.stream.result.value })
-  localStorage.setItem(LS_PREFIX + activeId.value, JSON.stringify(snapshot))
+  try { localStorage.setItem(LS_PREFIX + activeId.value, JSON.stringify(snapshot)) } catch (e) { /* ignore */ }
   persistSessions()
 }
 
@@ -206,16 +432,18 @@ function loadMessages(id) {
   }
 }
 
-onMounted(() => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(LS_SESSIONS) || '[]')
-    if (Array.isArray(raw)) sessions.value = raw
-  } catch (e) { /* ignore */ }
-  if (!sessions.value.length) {
-    sessions.value = [{ id: uid(), title: '新会话', createdAt: Date.now() }]
-  }
-  activeId.value = sessions.value[0].id
-  messages.value = loadMessages(activeId.value)
+onMounted(async () => {
+  // 折叠态恢复
+  sessFolded.value = localStorage.getItem(LS_SESS_FOLDED) === '1'
+  document.body.classList.toggle('folded-sess', sessFolded.value)
+  await loadSessions()
+  // 活跃流所在会话优先（SPA 切页回来接续渲染），否则最近会话
+  const ws = useChatWorkspace()
+  const initThread = (ws.streams.size && ws.activeThread) || (sessions.value[0] && sessions.value[0].threadId)
+  if (!initThread) { newSession(); return }
+  activeId.value = initThread
+  messages.value = await loadMessagesRemote(initThread)
+  restoreActiveStream(initThread)
   persistSessions()
 })
 </script>
@@ -250,7 +478,13 @@ onMounted(() => {
 }
 .chat-head .ck { font-family: var(--f-mono); font-size: 10px; letter-spacing: 3px; color: var(--green-ink); }
 .chat-head .ca { font-size: 13.5px; font-weight: 700; }
-.chat-head .cb-live { width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-left: auto; }
+.chat-head .export-btn {
+  margin-left: auto; height: 26px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid rgba(23, 160, 94, .45); background: rgba(23, 160, 94, .08);
+  color: var(--green-ink); font: inherit; font-size: 11.5px; cursor: pointer;
+}
+.chat-head .export-btn:hover { background: rgba(23, 160, 94, .16); }
+.chat-head .cb-live { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 .composer-wrap { flex-shrink: 0; }
 .composer-wrap :deep(.input-bar-wrap) {
   background: transparent; border-top-color: var(--border-default);

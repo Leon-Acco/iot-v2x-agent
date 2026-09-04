@@ -37,9 +37,24 @@ public class CapabilityFirewall {
         }
     }
 
+    /**
+     * 管理员试跑专用：跳过状态校验（草稿/预发可试跑），保留 scope/参数/限流护栏
+     */
+    public void checkForDryRun(CapabilityDefinition def, ParamResolver.ResolvedParams resolved, PermissionContext ctx) {
+        try (TraceContext.Span span = TraceContext.span("firewall-dryrun", def.getId())) {
+            doCheck(def, resolved, ctx, true);
+        } catch (RuntimeException e) {
+            throw e;
+        }
+    }
+
     private void doCheck(CapabilityDefinition def, ParamResolver.ResolvedParams resolved, PermissionContext ctx) {
+        doCheck(def, resolved, ctx, false);
+    }
+
+    private void doCheck(CapabilityDefinition def, ParamResolver.ResolvedParams resolved, PermissionContext ctx, boolean skipStatus) {
         // 1 状态：仅 online 可执行
-        if (!"online".equals(def.getStatus())) {
+        if (!skipStatus && !"online".equals(def.getStatus())) {
             throw ApiException.capabilityNotFound("capability 未上线: " + def.getId());
         }
         // 2 scope：用户 scopes 必须覆盖 capability 所需 scopes

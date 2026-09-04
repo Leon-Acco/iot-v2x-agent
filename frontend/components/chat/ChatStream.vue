@@ -11,7 +11,7 @@
       />
       <template v-for="msg in messages" :key="msg.id">
         <UserMessage v-if="msg.role === 'user'" :content="msg.content" @edit="$emit('edit', $event)" />
-        <AiMessage v-else :stream="msg.stream" @retry="$emit('retry', msg)" @clarify="$emit('clarify', $event)" @taskcard="$emit('taskcard', msg)" />
+        <AiMessage v-else :stream="msg.stream" :question="msg.question || ''" @retry="$emit('retry', msg)" @clarify="$emit('clarify', $event)" />
       </template>
       <div v-if="followUps.length" class="follow-row">
         <button v-for="(c, i) in followUps" :key="i" class="chip" @click="$emit('ask', c)">{{ c }}</button>
@@ -26,7 +26,7 @@ const props = defineProps({
   followUps: { type: Array, default: () => [] },
   sampleQuestions: { type: Array, default: () => [] }
 })
-defineEmits(['ask', 'edit', 'retry', 'clarify', 'taskcard'])
+defineEmits(['ask', 'edit', 'retry', 'clarify'])
 
 const scrollEl = ref(null)
 let pinned = true

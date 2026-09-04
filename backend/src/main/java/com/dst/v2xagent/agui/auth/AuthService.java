@@ -29,7 +29,9 @@ public class AuthService {
     /** P0 全部演示账号具备的只读 scope */
     private static final Set<String> READ_SCOPES = Set.of(
             "vehicle.status.read", "vehicle.location.read", "vehicle.mileage.read", "vehicle.alarm.read",
-            "vehicle.fault.read", "vehicle.charge.read", "vehicle.trip.read", "vehicle.fence.read");
+            "vehicle.fault.read", "vehicle.charge.read", "vehicle.trip.read", "vehicle.fence.read",
+            // TBOX 新域能力（电池/冷链/锁车/安全驾驶）
+            "vehicle.battery.read", "vehicle.coldchain.read", "vehicle.control.read", "vehicle.safety.read");
 
     /** 登录：返回会话 token，失败返回 empty */
     public Optional<String> login(String username, String password) {
