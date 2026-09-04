@@ -57,7 +57,7 @@ const navGroups = [
     title: '数据',
     items: [
       { path: '/console/stats', label: '数据统计', icon: 'chart' },
-      { path: '/console/stats?tab=audit', label: '调用审计', icon: 'lines' },
+      { path: '/console/metrics', label: '评估指标', icon: 'lines' },
       { path: '/console/memory', label: '记忆治理', icon: 'db' }
     ]
   },

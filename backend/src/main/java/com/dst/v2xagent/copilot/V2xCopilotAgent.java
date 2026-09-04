@@ -182,6 +182,36 @@ public class V2xCopilotAgent implements Agent {
         return m.find() ? m.group() : null;
     }
 
+    /**
+     * 关键词快路由：问题恰好命中一个领域词时直达专家（零 LLM 成本、零延迟、不受 GLM 慢/额度影响）。
+     * 保守规则：0 个或 ≥2 个领域词命中一律返回 null 交给模型路由；
+     * anomaly 类意图（怎么回事/为什么…）必须有车牌/VIN 才短路，否则交给模型判断。
+     */
+    private static String fastPathRoute(String question) {
+        if (question == null || question.isBlank()) {
+            return null;
+        }
+        String t = question.toLowerCase();
+        boolean hasVehicle = findFirst(PLATE_P, question) != null || findFirst(VIN_P, question) != null;
+        if (hasVehicle && (t.contains("怎么回事") || t.contains("异常") || t.contains("为什么") || t.contains("哪里坏"))) {
+            return "anomaly";
+        }
+        java.util.Set<String> hits = new java.util.HashSet<>();
+        if (t.contains("告警") || t.contains("报警")) {
+            hits.add("alarm");
+        }
+        if (t.contains("故障")) {
+            hits.add("fault");
+        }
+        if (t.contains("里程") || t.contains("充电") || t.contains("行驶")) {
+            hits.add("mileage");
+        }
+        if (t.contains("离线") || t.contains("在线") || t.contains("位置") || t.contains("在哪")) {
+            hits.add("vehicle");
+        }
+        return hits.size() == 1 ? hits.iterator().next() : null;
+    }
+
     /** 意图关键词分类：给理解阶段一个初步判断（最终以路由模型为准） */
     private static String classifyIntent(String q) {
         if (q == null) {
@@ -309,12 +339,22 @@ public class V2xCopilotAgent implements Agent {
 
             sink.emit(AgUiEvent.stepStarted("route", "正在分配专家 Agent"));
             checkCancelled(input.runId());
+            // 关键词快路由：单域词恰好命中一个域时零延迟直达（不调 LLM、不吃额度、不受超时影响）
+            String fast = fastPathRoute(input.question());
             SupervisorRouter.RouteResult rr;
-            try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
-                         com.dst.v2xagent.observability.trace.TraceContext.span("agent", "route")) {
-                rr = router.route(input.question(), historyTail(history));
+            if (fast != null) {
+                rr = new SupervisorRouter.RouteResult(fast, null, null, "关键词快路由（命中唯一领域词，跳过模型路由）");
+            } else {
+                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                             com.dst.v2xagent.observability.trace.TraceContext.span("agent", "route")) {
+                    rr = router.route(input.question(), tail);
+                }
             }
             routeTag = rr.route();
+            // 路由降级打标：cross 若来自 fallback 与真 cross 分桶（指标页可见降级占比）
+            if ("cross".equals(rr.route()) && "route fallback".equals(rr.reason())) {
+                routeTag = "cross_fb";
+            }
             sink.emit(AgUiEvent.stepFinished("route"));
             sink.emit(AgUiEvent.of("AGENT_ROUTE", Map.of(
                     "route", rr.route(), "reason", rr.reason() == null ? "" : rr.reason(),
