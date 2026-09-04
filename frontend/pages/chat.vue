@@ -19,6 +19,7 @@
           <span class="ck">对话流</span>
           <span class="ca">设备运营 Agent</span>
           <span class="cb-live" aria-hidden="true"></span>
+          <button class="btn pdf-btn" type="button" :disabled="exporting" @click="exportPdf">{{ exporting ? '生成中…' : '导出 PDF' }}</button>
         </div>
         <ChatStream
           :messages="messages"
@@ -47,6 +48,7 @@ const activeId = ref('')
 const messages = ref([])
 const composer = ref(null)
 const sessFolded = ref(false)
+const exporting = ref(false)
 let editFromId = null
 
 // 历史会话折叠：body 类驱动（全局 folded-sess 规则收起侧栏并收窄网格）
@@ -130,6 +132,32 @@ function send(q) {
 function onStop() {
   const cur = messages.value.find(m => m.role === 'ai' && m.stream.isRunning.value)
   if (cur) cur.stream.cancel()
+}
+
+// 导出对话 PDF：html2canvas 长截屏 .chat-column（聊天列完整内容）+ jsPDF 单页导出（参考 portal-adas CreatePdf.vue）
+async function exportPdf() {
+  const target = document.querySelector('.chat-column')
+  if (!target || exporting.value) return
+  exporting.value = true
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+    const widthValue = target.offsetWidth
+    const heightValue = target.scrollHeight
+    const canvas = await html2canvas(target, {
+      allowTaint: true, scrollY: 0, scrollX: 0,
+      scale: 2, useCORS: true, backgroundColor: '#FFFFFF',
+      width: widthValue, height: heightValue
+    })
+    const imageUrl = canvas.toDataURL('image/jpeg', 0.6)
+    const pdf = new jsPDF('', 'px', [widthValue, heightValue])
+    pdf.addImage(imageUrl, 'jpeg', 0, 0, widthValue, heightValue)
+    const s = sessions.value.find(x => x.id === activeId.value)
+    pdf.save(((s && s.title) || '对话') + '-对话.pdf')
+  } catch (e) {
+    alert('PDF 生成失败：' + (e && e.message ? e.message : e))
+  } finally {
+    exporting.value = false
+  }
 }
 
 function onEdit(content) {
@@ -251,6 +279,8 @@ onMounted(() => {
 .chat-head .ck { font-family: var(--f-mono); font-size: 10px; letter-spacing: 3px; color: var(--green-ink); }
 .chat-head .ca { font-size: 13.5px; font-weight: 700; }
 .chat-head .cb-live { width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-left: auto; }
+.pdf-btn { height: 26px; padding: 0 12px; font-size: 11.5px; }
+.pdf-btn:disabled { opacity: .6; cursor: wait; }
 .composer-wrap { flex-shrink: 0; }
 .composer-wrap :deep(.input-bar-wrap) {
   background: transparent; border-top-color: var(--border-default);

@@ -13,11 +13,11 @@ definePageMeta({ layout: false })
 const stageText = ref('正在连接 AI 服务')
 
 onMounted(async () => {
-  await new Promise(r => setTimeout(r, 1400))
-  stageText.value = '正在验证身份'
   await new Promise(r => setTimeout(r, 1000))
-  stageText.value = '连接成功'
+  stageText.value = '正在验证身份'
   await new Promise(r => setTimeout(r, 600))
+  stageText.value = '连接成功'
+  await new Promise(r => setTimeout(r, 400))
   navigateTo('/chat')
 })
 </script>

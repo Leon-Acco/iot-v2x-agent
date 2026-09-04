@@ -153,7 +153,7 @@ onMounted(load)
 
 <style scoped>
 .cap-page { padding: 16px 18px; min-height: calc(100vh - 116px); }
-.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 .search-input {
   width: 260px; padding: 8px 12px; font-size: 13px;
   border: 1px solid #E5E5E5; border-radius: 8px; outline: none; background: #F3F3F5;

@@ -9,7 +9,7 @@
         <th>域</th>
         <th>类型</th>
         <th>状态</th>
-        <th>版本</th>
+        <th class="ver">版本</th>
         <th>操作</th>
       </tr>
     </thead>
@@ -23,7 +23,7 @@
         <td>{{ c.domain }}</td>
         <td><span class="kind-tag" :class="c.kind">{{ c.kind === 'orchestration' ? '编排' : '能力' }}</span></td>
         <td><StatusPill :status="c.status" /></td>
-        <td class="mono">v{{ c.version }}</td>
+        <td class="mono ver">v{{ c.version }}</td>
         <td class="ops">
           <button class="btn op" @click="$emit('edit', c)">编辑</button>
           <button class="btn op" @click="$emit('dryrun', c)">试跑</button>
@@ -45,14 +45,16 @@ defineEmits(['edit', 'dryrun', 'status'])
 
 <style scoped>
 .cap-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.cap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* min-width 地板 + 单元格 nowrap：窄屏保持列宽可读，由 .cap-scroll 横滚而不是挤压换行 */
+.cap-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; }
 .cap-table th {
   text-align: left; padding: 10px 12px; color: var(--text-3); font-size: 12px;
   border-bottom: 1px solid #E5E5E5; font-weight: 600;
 }
-.cap-table td { padding: 10px 12px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+.cap-table td { padding: 10px 12px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; white-space: nowrap; }
 .cap-table tbody tr:hover { background: #F3F3F5; }
 .mono { font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: var(--text-2); }
+.ver { min-width: 88px; }
 .cap-name { font-weight: 600; }
 .cap-aliases { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .kind-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #F3F4F6; color: var(--text-2); }
