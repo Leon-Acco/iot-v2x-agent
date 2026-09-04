@@ -801,7 +801,7 @@ public class V2xCopilotAgent implements Agent {
                     ? List.of("查询" + veh + "的最后位置", "分析" + veh + "近期运行情况")
                     : List.of("查询离线超 24 小时的车辆清单", "统计当前在线车辆数");
             case "anomaly" -> veh != null
-                    ? List.of("查询" + veh + "的告警明细", "分析" + veh + "近 30 天运行情况", "为" + veh + "生成处置任务卡")
+                    ? List.of("查询" + veh + "的告警明细", "分析" + veh + "近 30 天运行情况", "把" + veh + "的异常分析存为任务")
                     : List.of("查询告警明细", "分析近 30 天运行情况");
             case "forced" -> List.of("调整时间范围重新查询", "继续提问");
             default -> defaultFollowUps();

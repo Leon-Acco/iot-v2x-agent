@@ -52,7 +52,7 @@ const navGroups = [
     title: '运营',
     items: [
       { path: '/tasks', label: '任务中心', icon: 'clock' },
-      { path: '/anomaly', label: '异常与任务卡', icon: 'warn' }
+      { path: '/anomaly', label: '异常分析', icon: 'warn' }
     ]
   },
   {

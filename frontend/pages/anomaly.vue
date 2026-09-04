@@ -1,23 +1,16 @@
 <template>
-  <!-- P3 异常分析与任务卡：左任务列表 + 右异常详情 -->
-  <AppShell title="异常分析与任务卡">
+  <!-- 异常分析：单列（任务卡列表已并入任务中心 /tasks） -->
+  <AppShell title="异常分析">
     <div class="anomaly-page">
-      <div class="left-col">
-        <TaskCardList :cards="cards" @refresh="loadMine" />
-      </div>
-      <div class="right-col">
-        <AnomalyCard :context="context" @created="loadMine" />
-      </div>
+      <AnomalyCard :context="context" />
     </div>
   </AppShell>
 </template>
 
 <script setup>
-const { cards, loadMine } = useTaskCards()
 const context = ref(null)
 
 onMounted(() => {
-  loadMine()
   // 从工作台跳转带入的异常上下文
   try {
     const raw = sessionStorage.getItem('v2x.anomaly.context')
@@ -30,9 +23,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.anomaly-page { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 12px; min-height: calc(100vh - 116px); }
-.left-col, .right-col { min-width: 0; }
+.anomaly-page { min-height: calc(100vh - 116px); }
 @media (max-width: 880px) {
-  .anomaly-page { grid-template-columns: 1fr; }
+  .anomaly-page { min-height: auto; }
 }
 </style>

@@ -7,6 +7,7 @@
       <span v-if="run.elapsedMs != null" class="run-meta">{{ run.elapsedMs }}ms</span>
       <span v-if="run.triggerType" class="run-meta">{{ run.triggerType === 'cron' ? '定时' : '手动' }} · {{ run.triggeredBy }}</span>
       <span v-if="run.startedAt" class="run-meta">{{ fmtTime(run.startedAt) }}</span>
+      <button v-if="run.runId" class="run-export" type="button" title="导出本次执行记录 PDF（分析报告 + 数据表）" @click="exportPdf">导出 PDF</button>
     </div>
     <div v-if="run.error" class="run-error">{{ run.error }}</div>
 
@@ -64,6 +65,13 @@ function fmtTime(t) {
   const d = new Date(t)
   return isNaN(d.getTime()) ? String(t) : d.toLocaleString('zh-CN', { hour12: false })
 }
+
+/** 导出本次执行记录 PDF（同源带 cookie，新窗口触发下载） */
+function exportPdf() {
+  if (props.run && props.run.runId) {
+    window.open('/ag-ui/task-run/' + props.run.runId + '/export.pdf', '_blank')
+  }
+}
 </script>
 
 <style scoped>
@@ -71,6 +79,12 @@ function fmtTime(t) {
 .run-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .run-title { font-size: 15px; font-weight: 700; }
 .run-meta { font-size: 11px; color: var(--text-3); }
+.run-export {
+  margin-left: auto; height: 24px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid var(--border-default, #e5e7eb); background: #fff;
+  color: var(--text-2); font: inherit; font-size: 11px; cursor: pointer;
+}
+.run-export:hover { border-color: var(--green-deep); color: var(--green-ink); }
 .run-error {
   font-size: 12px; color: var(--danger); background: rgba(220, 38, 38, .06);
   border-radius: 10px; padding: 10px 12px; line-height: 1.7;

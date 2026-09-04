@@ -52,9 +52,7 @@
         </div>
       </div>
 
-      <!-- 内嵌任务卡：生成后直接在消息流内展示 -->
-      <TaskCardInline v-if="taskCard" :id="taskCard.id" :title="taskCard.title" />
-      <div v-else-if="taskCardError" class="tc-error">{{ taskCardError }}</div>
+      <!-- 内嵌任务卡（旧版已下线，统一走「存为任务」→ 任务中心） -->
 
       <!-- 存为任务成功提示：内联轻提示（不跳页） -->
       <div v-if="taskSaved" class="task-saved-tip">
@@ -86,9 +84,6 @@
           </button>
           <button class="icon-btn" title="重新生成" @click="$emit('retry')">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
-          </button>
-          <button v-if="hasResult && !taskCard" class="icon-btn" title="生成任务卡" @click="createTaskCard">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
           </button>
           <button v-if="hasResult" class="icon-btn" :class="{ voted: taskSaved }" title="存为任务（可重复/一键/定时执行）" @click="saveTaskOpen = true">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
@@ -252,35 +247,6 @@ function copyAnswer() {
 
 function vote(rating) {
   props.stream.rate(rating)
-}
-
-// 内嵌任务卡：直接调后端创建，成功后消息内渲染（不再跳页）
-const taskCard = ref(null)
-const taskCardError = ref('')
-async function createTaskCard() {
-  taskCardError.value = ''
-  try {
-    const res = props.stream.result.value || {}
-    const last = tools.value.length ? tools.value[tools.value.length - 1] : null
-    const rawArgs = last && last.args && typeof last.args === 'object' ? last.args : {}
-    const params = {}
-    Object.keys(rawArgs).filter(k => !k.startsWith('_') && !k.startsWith('acl_')).forEach(k => { params[k] = rawArgs[k] })
-    // capabilityId 传工具中文名（后端 TaskCardService 按中文名映射 capability 目录；
-    // copilot 内部 id 如 real_alarm_count 与 capability id 不同体系，直传会 404）
-    const toolName = last && last.name ? String(last.name) : ''
-    const { create } = useTaskCards()
-    const created = await create({
-      title: props.question || res.capabilityId || '任务卡',
-      capabilityId: toolName || res.capabilityId || '',
-      params,
-      conclusion: props.stream.answer.value || '',
-      runId: props.stream.runId.value || '',
-      traceId: props.stream.traceId.value || ''
-    })
-    taskCard.value = { id: created.id, title: created.title || props.question }
-  } catch (e) {
-    taskCardError.value = '任务卡生成失败：' + (e.message || e)
-  }
 }
 
 // 存为任务（任务卡 2.0）：整链固化本轮全部工具帧（多步流程），成功后内联提示

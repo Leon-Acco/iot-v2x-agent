@@ -1,5 +1,5 @@
 <template>
-  <!-- 异常分析详情：结论 + 参数快照 + 处置建议 + 生成任务卡 / 导出 PDF -->
+  <!-- 异常分析详情：结论 + 参数快照 + 处置建议 + 存为巡检任务（任务中心链路） -->
   <div class="anomaly-card panel-card">
     <template v-if="context">
       <div class="section-title">异常解释结论</div>
@@ -19,17 +19,17 @@
 
       <div class="action-bar">
         <button class="btn btn-primary" :disabled="creating" @click="createCard">
-          {{ creating ? '生成中…' : '生成处置任务卡' }}
+          {{ creating ? '保存中…' : '存为巡检任务' }}
         </button>
-        <button v-if="createdId" class="btn" @click="downloadCreated">导出 PDF</button>
-        <span v-if="createdId" class="created-tip">任务卡 #{{ createdId }} 已生成，已通知值班运维</span>
+        <span v-if="createdId" class="created-tip">巡检任务 #{{ createdId }} 已存入任务中心，可一键重跑或定时执行</span>
+        <NuxtLink v-if="createdId" to="/tasks" class="btn">去任务中心</NuxtLink>
       </div>
       <div v-if="error" class="error-text">{{ error }}</div>
     </template>
 
     <div v-else class="no-context">
       <p>暂无异常上下文</p>
-      <p class="hint">在运营工作台提问后，点击回答下方「生成任务卡」即可携带结论进入本页</p>
+      <p class="hint">在运营工作台对车辆异常提问后，从回答下方「存为任务」即可固化巡检流程</p>
       <NuxtLink to="/chat" class="btn btn-primary">去工作台提问</NuxtLink>
     </div>
   </div>
@@ -41,7 +41,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['created'])
 
-const { create, downloadPdf } = useTaskCards()
+const { createFromFrames } = useTasks()
 const creating = ref(false)
 const createdId = ref(null)
 const error = ref('')
@@ -59,34 +59,26 @@ const suggestions = computed(() => [
   '持续观察 24 小时，未恢复则升级为维修工单'
 ])
 
+/** 存为巡检任务（任务中心链路）：能力 + 参数固化为单步任务，之后可重跑/定时/导出 PDF */
 async function createCard() {
   if (!props.context || creating.value) return
   creating.value = true
   error.value = ''
   try {
-    const res = await create({
-      title: (props.context.title || props.context.capabilityId || '异常处置').slice(0, 60),
-      capabilityId: props.context.capabilityId,
-      params: props.context.params || {},
-      runId: props.context.runId || '',
-      traceId: props.context.traceId || '',
-      conclusion: props.context.conclusion || ''
+    const args = {}
+    const p = props.context.params || {}
+    Object.keys(p).filter(k => !k.startsWith('_') && !k.startsWith('acl_')).forEach(k => { args[k] = p[k] })
+    const res = await createFromFrames({
+      title: (props.context.title || props.context.capabilityId || '异常巡检').slice(0, 60),
+      steps: [{ id: props.context.capabilityId, name: props.context.capabilityId, args }],
+      sourceQuestion: (props.context.conclusion || '').slice(0, 200)
     })
     createdId.value = res && res.id ? res.id : null
     emit('created')
   } catch (e) {
-    error.value = e.message || '创建失败'
+    error.value = e.message || '保存失败'
   } finally {
     creating.value = false
-  }
-}
-
-async function downloadCreated() {
-  if (!createdId.value) return
-  try {
-    await downloadPdf(createdId.value)
-  } catch (e) {
-    error.value = 'PDF 下载失败：' + e.message
   }
 }
 </script>

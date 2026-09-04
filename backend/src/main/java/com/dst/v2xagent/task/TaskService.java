@@ -175,6 +175,10 @@ public class TaskService {
         String conclusion = null;
         if (analyzeEnabled(task) && okCount > 0) {
             conclusion = generateReport(task, triggerType, stepResults);
+            // 异常自动复核：报告尾部标记 <复核:车辆> 时触发 anomaly_explain 深度复核（追加步骤与复核结论段）
+            if (conclusion != null) {
+                conclusion = autoReviewIfNeeded(task, conclusion, stepResults, ctx);
+            }
         }
         elapsed = System.currentTimeMillis() - start; // 报告生成计入总耗时
         try {
@@ -537,6 +541,120 @@ public class TaskService {
         }
     }
 
+    // ==================== 异常自动复核（报告标记 → anomaly_explain 深度取证） ====================
+
+    /** 复核触发标记：<复核:车辆标识>（由 TASK_REPORT_PROMPT 规则 6 产出） */
+    private static final java.util.regex.Pattern REVIEW_MARK =
+            java.util.regex.Pattern.compile("<复核[:：]\\s*([^>\\s]{2,32}?)\\s*>");
+
+    /**
+     * 报告判定有异常时自动触发深度复核：对标记车辆执行 anomaly_explain 编排
+     * （告警+故障+里程三路取证），复核表格追加为执行步骤、复核结论拼接进报告。
+     * 复核失败不影响任务状态，仅在报告尾部说明。
+     */
+    private String autoReviewIfNeeded(Map<String, Object> task, String conclusion,
+                                      List<Map<String, Object>> stepResults, PermissionContext ctx) {
+        java.util.regex.Matcher m = REVIEW_MARK.matcher(conclusion);
+        if (!m.find()) {
+            return conclusion;
+        }
+        String vehicle = m.group(1);
+        String timeRange = stepTimeRange(task);
+        long t0 = System.currentTimeMillis();
+        try {
+            CapabilityService.InvokeOutcome outcome = capabilityService.invoke("anomaly_explain",
+                    Map.of("vehicle", vehicle, "time_range", timeRange), ctx);
+            Map<String, Object> step = new LinkedHashMap<>();
+            step.put("seq", nextSeq(stepResults));
+            step.put("capabilityId", "anomaly_explain");
+            step.put("displayName", vehicle + " 异常复核（自动触发）");
+            step.put("status", "SUCCESS");
+            step.put("elapsedMs", System.currentTimeMillis() - t0);
+            step.put("result", tablePayload(outcome.table()));
+            step.put("review", true);
+            stepResults.add(step);
+            String reviewText = generateReviewText(vehicle, outcome);
+            return conclusion + "\n\n---\n\n**【自动复核 · " + vehicle + "】**（报告判定异常后自动触发三路取证：告警 / 故障 / 里程）\n\n"
+                    + reviewText;
+        } catch (Exception e) {
+            log.warn("自动复核执行失败 taskId={} vehicle={}：{}", task.get("id"), vehicle, rootMessage(e));
+            return conclusion + "\n\n> 自动复核执行失败：" + rootMessage(e)
+                    + "。可在任务中心重新执行该任务，或在对话中对车辆发起异常分析。";
+        }
+    }
+
+    /** 从任务步骤参数中取时间范围相对词（复核取证窗口与巡检一致），缺省近7天 */
+    private String stepTimeRange(Map<String, Object> task) {
+        for (Map<String, Object> step : readSteps(task)) {
+            if (step.get("params") instanceof Map<?, ?> p && p.get("time_range") != null) {
+                return String.valueOf(p.get("time_range"));
+            }
+        }
+        return "近7天";
+    }
+
+    /** 复核步骤序号：现有最大 seq + 1 */
+    private static int nextSeq(List<Map<String, Object>> stepResults) {
+        int max = 0;
+        for (Map<String, Object> s : stepResults) {
+            if (s.get("seq") instanceof Number n) {
+                max = Math.max(max, n.intValue());
+            }
+        }
+        return max + 1;
+    }
+
+    /** 复核结论段：三路取证汇总表交给分析模型（mock/失败降级模板），确认异常 / 证据 / 处置建议 */
+    private String generateReviewText(String vehicle, CapabilityService.InvokeOutcome outcome) {
+        CopilotRuntime runtime = runtimeProvider.getIfAvailable();
+        if (runtime == null) {
+            return templateReviewText(vehicle, outcome);
+        }
+        try {
+            StringBuilder user = new StringBuilder();
+            user.append("复核对象车辆：").append(vehicle).append('\n');
+            user.append("触发原因：巡检任务分析报告判定该车辆存在需关注的异常，已自动完成三路取证。\n\n");
+            user.append("【三路取证汇总（告警 / 故障 / 里程）】\n");
+            user.append(compactResult(tablePayload(outcome.table())));
+            StringBuilder report = new StringBuilder();
+            runtime.streaming().stream(new com.dst.v2xagent.runtime.spi.StreamingModelClient.StreamingRequest(
+                    TASK_REVIEW_PROMPT, user.toString(), 0.3, 45000),
+                    delta -> report.append(delta));
+            return report.length() == 0 ? templateReviewText(vehicle, outcome) : report.toString();
+        } catch (Exception e) {
+            log.warn("复核结论生成失败 vehicle={}：{}", vehicle, e.getMessage());
+            return templateReviewText(vehicle, outcome);
+        }
+    }
+
+    /** 模板复核结论（mock/降级路径）：只引用取证表数值 */
+    private String templateReviewText(String vehicle, CapabilityService.InvokeOutcome outcome) {
+        TableResult table = outcome.table();
+        StringBuilder sb = new StringBuilder();
+        sb.append("**复核结论**：已完成对 ").append(vehicle).append(" 的三路取证（告警/故障/里程），共取回 ")
+                .append(table.rowCount()).append(" 行数据，明细见下方复核步骤表格。");
+        if (table.rowCount() > 0 && !table.columns().isEmpty()) {
+            sb.append(" 首条：");
+            for (int c = 0; c < Math.min(3, table.columns().size()); c++) {
+                if (c > 0) sb.append("，");
+                sb.append(table.rows().get(0)[c]);
+            }
+            sb.append("。");
+        }
+        sb.append("\n\n注：分析模型不可用，以上为数据摘要（模板生成），请人工研判。");
+        return sb.toString();
+    }
+
+    /** 复核结论系统提示词 */
+    private static final String TASK_REVIEW_PROMPT =
+            "你是车联网平台的异常复核 Agent。巡检任务判定某车辆存在异常后，系统自动完成三路取证"
+            + "（告警统计/故障明细/里程趋势），你基于取证数据输出复核结论。\n要求：\n"
+            + "1. 复核判定：确认异常存在并说明性质，或数据不支撑（建议降级观察）；\n"
+            + "2. 证据分点：引用具体数字（次数、日期、趋势）；\n"
+            + "3. 处置建议：是否需要检修、是否建议停运、观察窗口；\n"
+            + "4. 数据不足时如实说明，严禁编造数字；\n"
+            + "5. Markdown 格式，150 字以内；语气专业客观，不用 emoji。";
+
     /** 模板分析报告（mock/降级路径）：只引用结果集数值，绝不算新数 */
     private String templateReport(Map<String, Object> task, String triggerType,
                                    List<Map<String, Object>> stepResults) {
@@ -596,7 +714,13 @@ public class TaskService {
             + "2. 证据分点：引用具体数字（次数、行数、趋势、Top 项）；\n"
             + "3. 与任务用途相关的建议（是否需要人工跟进）；\n"
             + "4. 数据不足或为空时如实说明，严禁编造数字；\n"
-            + "5. Markdown 格式，全文不超过 250 字；语气专业客观，不用 emoji。";
+            + "5. Markdown 格式，全文不超过 250 字；语气专业客观，不用 emoji；\n"
+            + "6. 复核触发标记（必须严格遵守的输出格式）：判断该车辆存在需要人工关注的异常时，"
+            + "报告的最后一行必须原样输出复核标记，格式如 <复核:粤C10003>——"
+            + "冒号后取查询参数中的车牌或 VIN（与巡检对象一致）；"
+            + "该标记独占一行、放在报告最末尾、不加任何其他文字；"
+            + "无异常或数据不足时禁止输出该标记。系统据此自动触发三路取证深度复核，"
+            + "只要你在建议中提到需要复核/人工跟进/检修，就必须输出该标记。";
 
     /** 表格载荷（与 /ag-ui/tool-result 同构：columns + rows≤20 字符串化 + freshness） */
     private Map<String, Object> tablePayload(TableResult table) {

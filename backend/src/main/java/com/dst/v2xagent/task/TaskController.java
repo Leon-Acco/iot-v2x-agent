@@ -8,6 +8,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +38,7 @@ public class TaskController {
 
     private final TaskService taskService;
     private final TaskSchedulerHolder schedulerHolder;
+    private final TaskRunExportService runExportService;
 
     public record CreateBody(String title, List<TaskStepRefiner.Frame> steps,
                              String sourceSessionId, String sourceQuestion, Boolean analyzeReport) {}
@@ -102,6 +106,16 @@ public class TaskController {
     @GetMapping("/task-run/{runId}")
     public Map<String, Object> runDetail(@PathVariable long runId, HttpServletRequest request) {
         return taskService.getRun(permission(request), runId);
+    }
+
+    /** 单次执行记录 PDF 导出（元信息 + 分析报告 + 各步骤数据表，合并旧任务卡后的导出承接） */
+    @GetMapping(value = "/task-run/{runId}/export.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> exportRunPdf(@PathVariable long runId, HttpServletRequest request) {
+        byte[] pdf = runExportService.export(permission(request), runId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=task-run-" + runId + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     /** 定时设置：启用即校验 cron 并注册；停用即取消（手动执行不受影响） */
