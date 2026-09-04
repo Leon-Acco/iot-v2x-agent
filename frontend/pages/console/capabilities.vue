@@ -326,7 +326,7 @@ onMounted(loadAll)
 .ai-btn:hover { background: #e0e7ff; border-color: #818cf8; color: #4338ca; }
 
 .list-panel { padding: 16px 18px; }
-.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 .search-box {
   display: flex; align-items: center; gap: 6px; padding: 0 12px;
   border: 1px solid #E5E5E5; border-radius: 8px; background: #F3F3F5; color: var(--text-3);

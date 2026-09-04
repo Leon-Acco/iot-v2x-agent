@@ -1,5 +1,7 @@
 <template>
   <!-- 能力列表：搜索/状态/域筛选由父级处理，本组件只负责渲染与事件 -->
+  <!-- cap-scroll: min-width floor + horizontal scroll on narrow screens (merged from prod) -->
+  <div class="cap-scroll">
   <table class="cap-table">
     <thead>
       <tr>
@@ -8,7 +10,7 @@
         <th>域</th>
         <th>类型</th>
         <th>状态</th>
-        <th>版本</th>
+        <th class="ver">版本</th>
         <th>完整度</th>
         <th class="ops-col">操作</th>
       </tr>
@@ -26,7 +28,7 @@
         <td><span class="domain-tag" :style="domainStyle(c.domain)">{{ c.domain }}</span></td>
         <td><span class="kind-tag" :class="c.kind">{{ c.kind === 'orchestration' ? '编排' : '能力' }}</span></td>
         <td><StatusPill :status="c.status" /></td>
-        <td class="mono">v{{ c.version }}</td>
+        <td class="mono ver">v{{ c.version }}</td>
         <td>
           <span v-if="lintMap[c.id]" class="score-pill" :class="scoreClass(lintMap[c.id].score)" :title="lintMap[c.id].issues.join('\n')">
             {{ lintMap[c.id].score }}
@@ -47,6 +49,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </template>
 
 <script setup>
@@ -78,15 +81,17 @@ function domainStyle(domain) {
 </script>
 
 <style scoped>
-.cap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cap-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cap-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
 .cap-table th {
   text-align: left; padding: 10px 12px; color: var(--text-3); font-size: 12px;
   border-bottom: 1px solid #E5E5E5; font-weight: 600; white-space: nowrap;
 }
-.cap-table td { padding: 10px 12px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+.cap-table td { padding: 10px 12px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; white-space: nowrap; }
 .cap-table tbody tr { transition: background .15s ease; }
 .cap-table tbody tr:hover { background: #F7FAF9; }
 .mono { font-family: "SF Mono", Consolas, monospace; font-size: 12px; color: var(--text-2); }
+.ver { min-width: 88px; }
 .cap-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .ai-tag {
   font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;

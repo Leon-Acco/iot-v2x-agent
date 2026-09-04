@@ -32,6 +32,7 @@ defineEmits(['update:modelValue'])
   position: absolute; right: 0; top: 0; bottom: 0;
   background: #fff; box-shadow: var(--shadow-modal);
   display: flex; flex-direction: column;
+  max-width: calc(100vw - 24px); /* 移动端上限：内联 width 超屏时收窄为近全宽 */
   animation: slide-in .18s ease;
 }
 @keyframes slide-in { from { transform: translateX(40px); opacity: .6; } to { transform: none; opacity: 1; } }

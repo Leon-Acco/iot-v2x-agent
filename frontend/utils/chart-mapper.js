@@ -9,7 +9,7 @@ export const CHART_TYPE_LABELS = {
   table: '表格'
 }
 
-const PALETTE = ['#2B7FFF', '#38BDF8', '#F59E0B', '#22C55E', '#7FB5FF', '#A8CCFF']
+const PALETTE = ['#17A05E', '#E87A1E', '#0B7A3C', '#8AA294', '#2E9E6B', '#C89B5A']
 
 function splitColumns(columns) {
   const cols = Array.isArray(columns) ? columns : []
@@ -39,7 +39,7 @@ export function buildChartOption(chartType, columns, rows) {
     return {
       color: PALETTE,
       tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { bottom: 0, itemWidth: 10, itemHeight: 10, icon: 'circle', textStyle: { fontSize: 11, color: '#5B6B7F' } },
+      legend: { bottom: 0, itemWidth: 10, itemHeight: 10, icon: 'circle', textStyle: { fontSize: 11, color: '#5C7266' } },
       series: [{
         type: 'pie', radius: ['40%', '66%'], center: ['50%', '46%'],
         itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
@@ -78,13 +78,13 @@ export function buildChartOption(chartType, columns, rows) {
     }
   })
   return Object.assign({}, base, {
-    legend: { top: 0, textStyle: { fontSize: 11, color: '#5B6B7F' } },
+    legend: { top: 0, textStyle: { fontSize: 11, color: '#5C7266' } },
     grid: { left: 8, right: 12, top: 34, bottom: 4, containLabel: true },
     xAxis: {
       type: 'category', data: xData,
-      axisLabel: { fontSize: 10, color: '#93A1B5', rotate: xData.length > 8 ? 30 : 0 }
+      axisLabel: { fontSize: 10, color: '#8AA294', rotate: xData.length > 8 ? 30 : 0 }
     },
-    yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#93A1B5' }, splitLine: { lineStyle: { color: '#EDF3FB' } } },
+    yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#8AA294' }, splitLine: { lineStyle: { color: '#E3EDE7' } } },
     series
   })
 }
