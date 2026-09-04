@@ -1,8 +1,8 @@
 <template>
   <!-- 会话侧栏：展开=搜索+置顶+按时间分组列表；折叠=60px 窄条（新建 + 最近 3 条缩写） -->
   <aside class="sessions" :class="{ rail: folded }" aria-label="会话列表">
-    <!-- 折叠窄条：新建 + 最近 3 条缩写圆点 + 展开 -->
-    <template v-if="folded">
+    <!-- 折叠窄条：新建 + 最近 3 条缩写圆点 + 展开（两盒共存，显隐走 CSS 断点） -->
+    <div class="rail-box">
       <button class="rail-new" type="button" title="新建会话" @click="$emit('create')">＋</button>
       <div class="rail-list">
         <button
@@ -16,13 +16,13 @@
         >{{ abbrOf(s) }}</button>
       </div>
       <button class="rail-expand" type="button" title="展开会话列表" @click="$emit('fold')">»</button>
-    </template>
+    </div>
 
-    <!-- 展开态：搜索 + 置顶/分组列表 -->
-    <template v-else>
+    <!-- 展开态：搜索 + 置顶/分组列表（移动端恒显此盒；折叠时仅剩头部一行＝手风琴） -->
+    <div class="full-box">
       <div class="sess-head">
         <span class="st">历史会话</span>
-        <button class="fold-btn" type="button" :aria-expanded="folded ? 'false' : 'true'" @click="$emit('fold')">收起</button>
+        <button class="fold-btn" type="button" :aria-expanded="folded ? 'false' : 'true'" @click="$emit('fold')">{{ folded ? '展开' : '收起' }}</button>
       </div>
       <button class="newchat" @click="$emit('create')">＋ 新建会话</button>
       <div class="sess-search">
@@ -51,7 +51,7 @@
           </div>
         </template>
       </div>
-    </template>
+    </div>
   </aside>
 </template>
 
@@ -142,6 +142,11 @@ function rename(s) {
 }
 /* ---- 折叠窄条（60px）：竖排新建 + 最近 3 条缩写 + 展开 ---- */
 .sessions.rail { align-items: center; padding: 10px 6px; gap: 6px; }
+/* 双盒共存：显隐交给 CSS（桌面折叠态出窄条；移动端折叠概念失效恒显完整列表） */
+.full-box { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; min-height: 0; }
+.rail-box { display: none; flex-direction: column; gap: 6px; flex: 1; min-width: 0; min-height: 0; width: 100%; align-items: center; }
+.sessions.rail .full-box { display: none; }
+.sessions.rail .rail-box { display: flex; }
 .rail-new {
   width: 38px; height: 38px; border-radius: 50%; border: 1px dashed var(--green-deep);
   background: none; color: var(--green-ink); font-size: 18px; cursor: pointer; flex: 0 0 auto;
@@ -181,14 +186,14 @@ function rename(s) {
   padding: 0 12px; outline: none;
 }
 .sess-search input:focus { border-color: var(--green-deep); }
-.session-list { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.session-list { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 .empty { text-align: center; color: var(--t3); font-size: 12px; padding: 24px 0; }
 .group-label {
-  font-size: 10.5px; color: var(--t3); letter-spacing: 1px; margin: 8px 4px 3px;
+  font-size: 10.5px; color: var(--t3); letter-spacing: 1px; margin: 12px 4px 6px;
 }
 .group-label:first-child { margin-top: 0; }
 .sess {
-  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  padding: 12px 12px; border-radius: 999px; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 12.5px; color: var(--t2);
   display: flex; align-items: center; gap: 5px;
@@ -213,5 +218,16 @@ function rename(s) {
 @media (max-width: 1180px) {
   .sessions:not(.rail) { padding: 10px 8px; }
   .sess-time { display: none; }
+}
+
+/* ≤880（移动端单列）：折叠＝手风琴——整卡收成一行「历史会话｜展开」，展开时限高 38vh 内滚 */
+@media (max-width: 880px) {
+  .sessions { max-height: 38vh; }
+  .sessions.rail { max-height: none; align-items: stretch; padding: 12px 10px; gap: 8px; }
+  .sessions.rail .rail-box { display: none; }
+  .sessions.rail .full-box { display: flex; }
+  .sessions.rail .newchat,
+  .sessions.rail .sess-search,
+  .sessions.rail .session-list { display: none; }
 }
 </style>

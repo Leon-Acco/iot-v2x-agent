@@ -10,15 +10,27 @@
         aria-label="搜索工具"
       />
       <button
-        v-for="t in shownTools"
-        :key="t.id"
-        class="tool-chip"
-        :class="{ on: forcedTool === t.id, hot: hotIds.includes(t.id) }"
+        class="tool-toggle"
         type="button"
-        :title="(t.description || t.display) + '（点击使用智能路由时无需选择）'"
-        @click="pick(t.id)"
-      >{{ t.display }}</button>
-      <span v-if="!shownTools.length" class="tool-empty">无匹配工具</span>
+        :aria-expanded="toolsOpen ? 'true' : 'false'"
+        :aria-label="toolsOpen ? '收起工具列表' : '展开工具列表'"
+        :title="toolsOpen ? '收起工具列表' : '展开工具列表'"
+        @click="toggleTools"
+      ><span class="tg-arrow">{{ toolsOpen ? '▾' : '▸' }}</span></button>
+      <template v-if="toolsOpen">
+        <button
+          v-for="t in shownTools"
+          :key="t.id"
+          class="tool-chip"
+          :class="{ on: forcedTool === t.id, hot: hotIds.includes(t.id) }"
+          type="button"
+          :title="(t.description || t.display) + '（点击使用智能路由时无需选择）'"
+          @click="pick(t.id)"
+        >{{ t.display }}</button>
+        <span v-if="!shownTools.length" class="tool-empty">无匹配工具</span>
+      </template>
+      <!-- 折叠时仍显示已指定的工具（点击可取消指定） -->
+      <button v-else-if="forcedTool" class="tool-chip on" type="button" @click="pick(forcedTool)">{{ forcedDisplay }}</button>
     </div>
     <div class="input-bar">
       <input
@@ -59,6 +71,19 @@ const toolOptions = ref([])
 const forcedTool = ref(null)
 const toolSearch = ref('')
 
+// 工具列表折叠：默认折叠，localStorage 记住用户选择
+const LS_TOOLS_OPEN = 'v2x.tools.open'
+const toolsOpen = ref(false)
+function toggleTools() {
+  toolsOpen.value = !toolsOpen.value
+  try { localStorage.setItem(LS_TOOLS_OPEN, toolsOpen.value ? '1' : '0') } catch (e) { /* ignore */ }
+}
+
+// 折叠态下在搜索框输入时自动展开（否则输入无可见反馈）
+watch(toolSearch, (k) => {
+  if (k.trim() && !toolsOpen.value) toolsOpen.value = true
+})
+
 // 常用置顶：记录每个工具的使用次数（localStorage），Top3 标记为 hot 排前面
 const LS_USAGE = 'v2x.tools.usage'
 const usage = ref({})
@@ -92,6 +117,7 @@ const shownTools = computed(() => {
 })
 
 onMounted(async () => {
+  try { toolsOpen.value = localStorage.getItem(LS_TOOLS_OPEN) === '1' } catch (e) { /* ignore */ }
   try {
     const resp = await fetch('/ag-ui/copilot/tools')
     if (!resp.ok) return
@@ -135,6 +161,14 @@ defineExpose({ setText })
   background: rgba(255, 255, 255, 0.55);
 }
 .tool-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; max-width: 860px; margin-left: auto; margin-right: auto; }
+.tool-toggle {
+  height: 24px; width: 28px; padding: 0; border-radius: 999px;
+  border: 1px solid var(--border-default); background: #fff;
+  color: var(--text-2); font: inherit; cursor: pointer; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tool-toggle:hover { border-color: var(--green-deep); color: var(--green-ink); }
+.tg-arrow { font-size: 10px; color: var(--text-3); }
 .tool-search {
   height: 24px; width: 86px; padding: 0 10px; border-radius: 999px;
   border: 1px solid var(--border-default); background: #fff;

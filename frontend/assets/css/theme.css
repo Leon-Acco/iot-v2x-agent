@@ -129,9 +129,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   body.folded-nav .nav-fold { transform: rotate(180deg); }
 }
 
-/* 历史会话折叠（/chat 工作台）：折叠为 60px 窄条（新建 + 最近会话缩写），不再整栏隐藏 */
-body.folded-sess .sess-restore { display: inline-flex; }
-
 /* ===== 移动端硬化 ===== */
 @media (max-width: 760px) {
   /* 触控：≥16px 输入防 iOS 聚焦缩放 */

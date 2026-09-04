@@ -1,9 +1,6 @@
 <template>
   <!-- P1 设备运营工作台：会话｜数据画布｜聊天室（最右最宽），会话栏可折叠 -->
   <AppShell title="设备运营工作台">
-    <template #topbar>
-      <button class="sess-restore" type="button" :aria-expanded="sessFolded ? 'true' : 'false'" @click="toggleSess">⟨ 历史会话</button>
-    </template>
     <div class="wb-wrap">
       <FocusBar ref="focusBar" @ask="q => send(q)" />
       <div class="workbench" :style="gridStyle">
@@ -23,7 +20,6 @@
         <div class="chat-head">
           <span class="ck">对话流</span>
           <span class="ca">设备运营 Agent</span>
-          <button class="export-btn" type="button" @click="exportPdf">导出 PDF</button>
           <span class="cb-live" aria-hidden="true"></span>
         </div>
         <ChatStream
@@ -57,10 +53,9 @@ const composer = ref(null)
 const sessFolded = ref(false)
 let editFromId = null
 
-// 历史会话折叠：body 类驱动（全局 folded-sess 规则收起侧栏并收窄网格），localStorage 持久化
+// 历史会话折叠：--sess-col 收窄为 60px 窄条（收起/展开按钮都在侧栏内），localStorage 持久化
 function toggleSess() {
   sessFolded.value = !sessFolded.value
-  document.body.classList.toggle('folded-sess', sessFolded.value)
   try { localStorage.setItem(LS_SESS_FOLDED, sessFolded.value ? '1' : '0') } catch (e) { /* ignore */ }
 }
 
@@ -393,7 +388,7 @@ function replayRestore(threadId) {
   })
 }
 
-// ---------- 会话重命名 / 删除 / 导出 ----------
+// ---------- 会话重命名 / 删除 ----------
 
 async function onRename(threadId, title) {
   const s = sessions.value.find(x => x.threadId === threadId)
@@ -422,27 +417,6 @@ async function onDeleteSession(threadId) {
     else newSession()
   }
   persistSessions()
-}
-
-/** 会话级 PDF 导出：多轮对话 + 数据表 + 图表说明（后端 openpdf 生成） */
-async function exportPdf() {
-  const s = sessions.value.find(x => x.threadId === activeId.value)
-  if (!s || !s.sessionId) {
-    window.alert('会话尚未同步到服务端，发送一条消息后再导出')
-    return
-  }
-  try {
-    const resp = await fetch('/ag-ui/sessions/' + s.sessionId + '/export.pdf')
-    if (!resp.ok) throw new Error('HTTP ' + resp.status)
-    const blob = await resp.blob()
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'session-' + s.sessionId + '.pdf'
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000)
-  } catch (e) {
-    window.alert('导出失败：' + (e.message || e))
-  }
 }
 
 // ---------- localStorage 快照（降级链兜底） ----------
@@ -484,7 +458,6 @@ function loadMessages(id) {
 onMounted(async () => {
   // 折叠态恢复：默认收起为窄条（显式存过 '0' 才展开）
   sessFolded.value = localStorage.getItem(LS_SESS_FOLDED) !== '0'
-  document.body.classList.toggle('folded-sess', sessFolded.value)
   await loadSessions()
   // 活跃流所在会话优先（SPA 切页回来接续渲染），否则最近会话
   const ws = useChatWorkspace()
@@ -515,12 +488,6 @@ onMounted(async () => {
 .col-resizer { cursor: col-resize; border-radius: 3px; background: transparent; transition: background .15s; }
 .col-resizer:hover { background: rgba(23, 160, 94, .25); }
 :global(body.resizing-col) { cursor: col-resize; user-select: none; }
-.sess-restore {
-  display: none; height: 26px; padding: 0 12px; border-radius: 999px;
-  border: 1px dashed rgba(23, 160, 94, .55); background: rgba(23, 160, 94, .06);
-  color: var(--green-ink); font: inherit; font-size: 11.5px; cursor: pointer; align-items: center;
-}
-.sess-restore:hover { background: rgba(23, 160, 94, .12); }
 .chat-main {
   display: flex; flex-direction: column; min-width: 0;
   padding: 0 14px 14px; overflow: hidden;
@@ -535,12 +502,6 @@ onMounted(async () => {
 }
 .chat-head .ck { font-family: var(--f-mono); font-size: 10px; letter-spacing: 3px; color: var(--green-ink); }
 .chat-head .ca { font-size: 13.5px; font-weight: 700; }
-.chat-head .export-btn {
-  margin-left: auto; height: 26px; padding: 0 12px; border-radius: 999px;
-  border: 1px solid rgba(23, 160, 94, .45); background: rgba(23, 160, 94, .08);
-  color: var(--green-ink); font: inherit; font-size: 11.5px; cursor: pointer;
-}
-.chat-head .export-btn:hover { background: rgba(23, 160, 94, .16); }
 .chat-head .cb-live { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 .composer-wrap { flex-shrink: 0; }
 .composer-wrap :deep(.input-bar-wrap) {

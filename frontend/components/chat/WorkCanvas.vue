@@ -9,7 +9,7 @@
         </span>
         <button class="wc-op-btn" type="button" title="重跑最近一次查询，拿最新数据" @click="$emit('refresh')">刷新</button>
         <button v-if="result" class="wc-op-btn" type="button" title="导出 CSV（数据表全文）" @click="exportCsv">CSV</button>
-        <button v-if="chartOption" class="wc-op-btn" type="button" title="导出当前图表为 PNG" @click="exportPng">PNG</button>
+        <button v-if="!isEmpty" class="wc-op-btn" type="button" title="将数据工作台内容长截图导出为 PDF" :disabled="exporting" @click="exportPdf">{{ exporting ? '导出中…' : '导出 PDF' }}</button>
       </span>
     </div>
 
@@ -19,7 +19,7 @@
       <div class="wc-empty-sub">点击图表中的柱子/折点，可发起针对性追问</div>
     </div>
 
-    <div v-else class="wc-body">
+    <div v-else ref="bodyRef" class="wc-body">
       <!-- agent trace card: execution steps from AGENT_TRACE frame -->
       <div v-if="traceSteps.length" class="wc-trace">
         <div class="wc-trace-title">执行轨迹</div>
@@ -56,7 +56,7 @@
             </span>
             <span v-if="resultCaption" class="wc-card-caption">{{ resultCaption }}</span>
           </div>
-          <ChartPanel v-if="chartOption" ref="chartRef" :option="chartOption" height="300px" @point-click="onPointClick" />
+          <ChartPanel v-if="chartOption" :option="chartOption" height="300px" @point-click="onPointClick" />
           <div class="wc-table-wrap">
             <DataTable
               :columns="result.columns || []"
@@ -121,7 +121,7 @@ const resultCaption = computed(() => {
 // 图表类型切换：默认取后端 chartType；每个数据集记住上次选择（localStorage per capability）
 const chartTypes = ['bar', 'line', 'area', 'table']
 const activeChartType = ref('bar')
-const chartRef = ref(null)
+const bodyRef = ref(null)
 
 function tabKey(r) {
   return 'v2x.chart.tab.' + ((r && r.capabilityId) || 'default')
@@ -174,9 +174,34 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000)
 }
 
-/** PNG 导出：当前 ECharts 图（交给 ChartPanel 实例） */
-function exportPng() {
-  if (chartRef.value) chartRef.value.exportPng((result.value && result.value.capabilityId) || 'chart')
+/** PDF 导出：wc-body 整卡长截图 -> A4 分页 PDF（html2canvas + jsPDF 按需动态加载） */
+const exporting = ref(false)
+async function exportPdf() {
+  if (exporting.value || !bodyRef.value) return
+  exporting.value = true
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')])
+    const canvas = await html2canvas(bodyRef.value, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+    const img = canvas.toDataURL('image/jpeg', 0.92)
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
+    const pw = pdf.internal.pageSize.getWidth()
+    const ph = pdf.internal.pageSize.getHeight()
+    const m = 8
+    const iw = pw - m * 2
+    const ih = iw * canvas.height / canvas.width
+    // 长图分页：整图按页高步进错位绘制，页边界自然裁切
+    let offset = 0
+    while (offset < ih - 0.1) {
+      if (offset > 0) pdf.addPage()
+      pdf.addImage(img, 'JPEG', m, m - offset, iw, ih)
+      offset += ph - m * 2
+    }
+    pdf.save(((result.value && result.value.capabilityId) || 'workbench') + '-' + new Date().toISOString().slice(0, 10) + '.pdf')
+  } catch (e) {
+    window.alert('导出失败：' + (e && e.message ? e.message : e))
+  } finally {
+    exporting.value = false
+  }
 }
 
 // ---------- 图表 -> 对话联动 ----------
