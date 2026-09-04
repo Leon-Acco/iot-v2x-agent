@@ -14,7 +14,7 @@
           @rename="onRename"
           @delete="onDeleteSession"
         />
-        <WorkCanvas :stream="activeStream" @drill="onDrillAsk" @refresh="onRefreshLast" />
+        <WorkCanvas :stream="activeStream" :viz-list="workbenchViz" @remove-viz="removeViz" @drill="onDrillAsk" @refresh="onRefreshLast" />
         <div class="col-resizer" role="separator" aria-orientation="vertical" @pointerdown="startResize"></div>
         <div class="chat-main">
         <div class="chat-head">
@@ -139,6 +139,37 @@ const activeStream = computed(() => {
   return null
 })
 
+// ---------- 会话级数据工作台：本会话全部可视化卡片累积（不随单轮提问覆盖） ----------
+const workbenchViz = ref([])
+
+/** 卡片去重键：类型+标题相同视为同一张卡（重查刷新数据而非新增） */
+function vizKey(v) {
+  return (v.visualizationType || '') + '|' + (v.title || '')
+}
+
+/** 收集一张图：同 key 刷新原卡数据，异 key 追加（每卡带更新时间） */
+function collectViz(v) {
+  if (!v || v.type !== 'visualization') return
+  const item = Object.assign({}, v, { updatedAt: Date.now() })
+  const i = workbenchViz.value.findIndex(x => vizKey(x) === vizKey(v))
+  if (i >= 0) workbenchViz.value.splice(i, 1, item)
+  else workbenchViz.value.push(item)
+}
+
+/** 切会话/刷新/恢复后：从全部 AI 消息的帧快照重建工作台 */
+function rebuildWorkbench() {
+  const out = []
+  for (const m of messages.value) {
+    if (m.role !== 'ai' || !m.stream || !m.stream.visualizations) continue
+    for (const v of (m.stream.visualizations.value || [])) out.push(Object.assign({}, v))
+  }
+  workbenchViz.value = out
+}
+
+function removeViz(i) {
+  workbenchViz.value.splice(i, 1)
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
@@ -235,6 +266,7 @@ function newSession() {
   sessions.value.unshift({ id, sessionId: null, threadId: id, title: '新会话', createdAt: Date.now() })
   activeId.value = id
   messages.value = []
+  workbenchViz.value = []
   persistSessions()
 }
 
@@ -244,6 +276,7 @@ async function selectSession(threadId) {
   activeId.value = threadId
   messages.value = await loadMessagesRemote(threadId)
   restoreActiveStream(threadId)
+  rebuildWorkbench()
   persistSessions()
 }
 
@@ -263,6 +296,7 @@ function send(q, forcedTool) {
       : { role: 'assistant', content: m.stream.answer.value || '' })
     .filter(m => m.content)
   const stream = markRaw(useAguiStream())
+  stream.setVizHook(collectViz)
   const aiMsg = { id: uid(), role: 'ai', question: q, stream }
   messages.value.push({ id: uid(), role: 'user', content: q }, aiMsg)
   const s = sessions.value.find(x => x.threadId === activeId.value)
@@ -311,6 +345,7 @@ function onRetry(aiMsg) {
       : { role: 'assistant', content: m.stream.answer.value || '' })
     .filter(m => m.content)
   const fresh = markRaw(useAguiStream())
+  fresh.setVizHook(collectViz)
   messages.value.splice(idx, 1, { id: aiMsg.id, role: 'ai', question: aiMsg.question, stream: fresh })
   const runId = fresh.start(aiMsg.question, 'fleet_copilot', activeId.value, { history })
   const msgId = aiMsg.id
@@ -373,6 +408,7 @@ function replayRestore(threadId) {
   if (last && last.role === 'ai' && last.stream.answer.value) { clearActiveRun(); return }
   if (last && last.role === 'ai' && !last.stream.answer.value) messages.value.pop()
   const stream = markRaw(useAguiStream())
+  stream.setVizHook(collectViz)
   stream.phase.value = 'understanding'
   stream.runId.value = saved.runId
   const msg = { id: uid(), role: 'ai', question: saved.question || '', stream }
@@ -466,6 +502,7 @@ onMounted(async () => {
   activeId.value = initThread
   messages.value = await loadMessagesRemote(initThread)
   restoreActiveStream(initThread)
+  rebuildWorkbench()
   persistSessions()
 })
 </script>

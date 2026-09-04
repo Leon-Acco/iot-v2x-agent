@@ -46,6 +46,7 @@ public class V2xCopilotAgent implements Agent {
     private final String profileId;
     private final CopilotRuntime runtime;
     private final CopilotQueryRouter queries;
+    private final com.dst.v2xagent.capability.CapabilityRegistry capabilityRegistry;
     private final SupervisorRouter router;
     private final StringRedisTemplate redisTemplate;
     private final Semaphore runPermits;
@@ -58,9 +59,16 @@ public class V2xCopilotAgent implements Agent {
 
     public V2xCopilotAgent(String profileId, CopilotRuntime runtime, CopilotQueryRouter queries,
                            StringRedisTemplate redisTemplate, Semaphore runPermits) {
+        this(profileId, runtime, queries, null, redisTemplate, runPermits);
+    }
+
+    public V2xCopilotAgent(String profileId, CopilotRuntime runtime, CopilotQueryRouter queries,
+                           com.dst.v2xagent.capability.CapabilityRegistry capabilityRegistry,
+                           StringRedisTemplate redisTemplate, Semaphore runPermits) {
         this.profileId = profileId;
         this.runtime = runtime;
         this.queries = queries;
+        this.capabilityRegistry = capabilityRegistry;
         this.router = new SupervisorRouter(runtime.structured());
         this.redisTemplate = redisTemplate;
         this.runPermits = runPermits;
@@ -180,6 +188,19 @@ public class V2xCopilotAgent implements Agent {
         }
         java.util.regex.Matcher m = p.matcher(text);
         return m.find() ? m.group() : null;
+    }
+
+    /**
+     * 逃生门判定：首轮专家需要升级补救的条件。
+     * ① 一次工具都没调且结论极短（模型哑火）；② 查了但全部为空且没有像样的解释（<30 字）。
+     * 有合理解释（空结果回填引导模型解释了原因）则不升级——尊重模型的判断。
+     */
+    private static boolean needEscalate(ToolResultBridge bridge, StringBuilder conclusion) {
+        String c = conclusion.toString().trim();
+        if (bridge.receiptCount() == 0) {
+            return c.length() < 20;
+        }
+        return bridge.totalRows() == 0 && c.length() < 30;
     }
 
     /**
@@ -395,9 +416,30 @@ public class V2xCopilotAgent implements Agent {
                         + "2. 每次查询完成后核对返回行数与数据要点\n"
                         + "3. 证据充分后由分析模型推理结论，并按需生成可视化图表\n"
                         + "4. 全程受账号车队权限约束，越界数据自动过滤");
-                                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                ToolResultBridge spBridge;
+                try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
                              com.dst.v2xagent.observability.trace.TraceContext.span("agent", "specialist:" + domain)) {
-                    specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
+                    spBridge = specialistRun(domain, history, ctx, sink, conclusion, input.runId(), null);
+                }
+                // 路由逃生门：专家既没调工具也没说出像样结论（或查了但全空且没解释），
+                // 转 cross 跨域专家综合补救一次——打破「一次路由定生死」。cross 自身不再升级（防死循环）。
+                if (needEscalate(spBridge, conclusion) && !"cross".equals(rr.route())) {
+                    routeTag = rr.route() + "_esc";
+                    think(sink, "\n【路由纠偏】\n"
+                            + "首轮专家未能取得有效数据（0 次取证或全空且无解释）。\n"
+                            + "不轻易放弃——转交跨域综合专家补救：它拥有全部查询能力与 schema 探索工具，"
+                            + "可以换时间范围、查看数据形态后重新取证，或向用户澄清问题。\n");
+                    List<Msg> escHistory = new ArrayList<>(history);
+                    escHistory.add(Msg.builder().role(MsgRole.USER).textContent(
+                            "（系统提示：此前 " + domainDesc(rr.route()) + "未取得有效数据。"
+                                    + "请综合排查：换时间范围重查、用 load_capability_guide 查能力说明书、"
+                                    + "必要时用 list_tables/describe_table/sample_rows 确认数据形态，"
+                                    + "仍无法解决则如实向用户说明并请求澄清。）").build());
+                    try (com.dst.v2xagent.observability.trace.TraceContext.Span ignored =
+                                 com.dst.v2xagent.observability.trace.TraceContext.span("agent", "escalate:cross")) {
+                        specialistRun(SpecialistAgents.Domain.CROSS, escHistory, ctx, sink,
+                                conclusion, input.runId(), null);
+                    }
                 }
             }
 
@@ -432,23 +474,25 @@ public class V2xCopilotAgent implements Agent {
         }
     }
 
-    /** 专家路径：构建领域 ReActAgent，驱动事件流并翻译为 AG-UI 事件；forcedTool 非空时注入指定工具指令 */
-    private void specialistRun(SpecialistAgents.Domain domain, List<Msg> history,
-                               PermissionContext ctx, AguiFluxSink sink,
-                               StringBuilder conclusion, String runId, String forcedTool) {
+    /** 专家路径：构建领域 ReActAgent，驱动事件流并翻译为 AG-UI 事件；返回本轮流量的工具桥（逃生门判断用） */
+    private ToolResultBridge specialistRun(SpecialistAgents.Domain domain, List<Msg> history,
+                                           PermissionContext ctx, AguiFluxSink sink,
+                                           StringBuilder conclusion, String runId, String forcedTool) {
         ToolResultBridge bridge = new ToolResultBridge(sink, runtime.charts());
-        CopilotTools tools = new CopilotTools(queries, ctx, bridge);
+        CopilotTools tools = new CopilotTools(queries, ctx, bridge, capabilityRegistry);
         VisualizationTools vizTools = new VisualizationTools(bridge);
+        SchemaTools schemaTools = new SchemaTools(runtime.jdbc());
         Model model = AgentScopeModels.concludeModel(runtime.llm().activeProvider());
         sink.emit(AgUiEvent.stepStarted("invoke", "专家 Agent 正在分析"));
         checkCancelled(runId);
-        try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, model, forcedTool)) {
+        try (ReActAgent agent = SpecialistAgents.build(domain, tools, vizTools, schemaTools, model, forcedTool)) {
             agent.streamEvents(history)
                     .doOnNext(ev -> translateAgentEvent(ev, sink, conclusion, bridge))
                     .blockLast(Duration.ofSeconds(180));
         }
         checkCancelled(runId);
         sink.emit(AgUiEvent.stepFinished("invoke"));
+        return bridge;
     }
 
     /** AgentScope 事件 -> 前端事件：文本增量直接流式转发（表格/图表由工具桥推送），思考块转 THINKING 帧 */

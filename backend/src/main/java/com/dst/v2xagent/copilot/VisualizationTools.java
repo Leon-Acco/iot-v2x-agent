@@ -34,6 +34,8 @@ public class VisualizationTools {
             @ToolParam(name = "title", required = true, description = "可视化标题") String title,
             @ToolParam(name = "caption", required = true,
                     description = "一句话注明这张图展示什么、回答什么问题，例如「展示近 7 天各类告警占比，用于识别高频告警类型」") String caption,
+            @ToolParam(name = "analysis", required = true,
+                    description = "2-3 句精要分析，必须基于图中真实数据：先给关键数值/趋势，再点出异常或值得关注的点，最后给一句行动建议。禁止空话套话，例如「日均里程 182km 整体平稳；8/31 骤降至 43km 与当日电池告警聚集时间吻合；建议结合故障记录核查该车」") String analysis,
             @ToolParam(name = "data", required = true,
                     description = "JSON 字符串。图表/表格: {columns:[],rows:[[]]}；mermaid 类: {code:...}；topology: {nodes:[{id,label}],edges:[{source,target,label}]}；geo_map: {points:[{name,lng,lat,value}]}") String data) {
         try {
@@ -47,6 +49,7 @@ public class VisualizationTools {
             schema.put("visualizationType", visualizationType);
             schema.put("title", title);
             schema.put("caption", caption);
+            schema.put("analysis", analysis);
             schema.put("renderer", renderer);
             schema.put("data", node);
             schema.put("spec", "echarts".equals(renderer)

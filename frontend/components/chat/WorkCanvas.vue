@@ -34,9 +34,45 @@
         </div>
       </div>
 
-      <!-- visualization cards (generate_visualization outputs) -->
-      <div v-if="visualizations.length" class="wc-viz-grid">
-        <VisualizationRenderer v-for="(v, i) in visualizations" :key="i" :vis="v" />
+      <!-- visualization cards: session-level accumulation with caption + AI analysis -->
+      <div v-if="visualizations.length" class="wc-viz-sec">
+        <div class="wc-viz-bar">
+          <span class="wc-viz-count">分析卡片 {{ visualizations.length }} 张</span>
+          <button class="wc-op-btn" type="button" @click="toggleAllViz">{{ allExpanded ? '全部收起' : '全部展开' }}</button>
+        </div>
+        <div class="wc-viz-grid">
+          <div
+            v-for="(v, i) in visualizations"
+            :key="vizKeyOf(v)"
+            class="wc-viz-card"
+            :class="{ folded: !isVizOpen(v, i) }"
+          >
+            <!-- 折叠态：缩略行 -->
+            <div v-if="!isVizOpen(v, i)" class="wc-viz-thumb" @click="toggleViz(v)">
+              <span class="wc-viz-thumb-type">{{ vizTypeLabel(v.visualizationType) }}</span>
+              <span class="wc-viz-thumb-title">{{ v.title }}</span>
+              <span v-if="v.updatedAt" class="wc-viz-thumb-time">{{ fmtTime(v.updatedAt) }}</span>
+              <span class="wc-viz-thumb-open">展开</span>
+            </div>
+            <!-- 展开态：完整卡片 -->
+            <template v-else>
+              <div class="wc-viz-head">
+                <span class="wc-viz-title">{{ v.title }}</span>
+                <span class="wc-viz-ops">
+                  <span v-if="v.updatedAt" class="wc-viz-time">{{ fmtTime(v.updatedAt) }}</span>
+                  <button class="wc-viz-x" type="button" title="从工作台移除" @click="$emit('remove-viz', i)">×</button>
+                </span>
+              </div>
+              <VisualizationRenderer :vis="v" />
+              <div v-if="v.caption" class="wc-viz-caption">{{ v.caption }}</div>
+              <div v-if="v.analysis" class="wc-viz-analysis">
+                <span class="wc-viz-analysis-tag">AI 分析</span>
+                <span class="wc-viz-analysis-text">{{ v.analysis }}</span>
+              </div>
+              <button class="wc-viz-fold" type="button" @click="toggleViz(v)">收起</button>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- query result: chart + type switch + table -->
@@ -74,16 +110,63 @@
 <script setup>
 const props = defineProps({
   stream: { type: Object, default: null },
+  vizList: { type: Array, default: null },
   sampleHint: { type: String, default: '' }
 })
-const emit = defineEmits(['drill', 'refresh'])
+const emit = defineEmits(['drill', 'refresh', 'remove-viz'])
 
 const EMPTY = '提问后，这里展示图表、地图、表格与分析结果'
 
+// 会话级工作台卡片优先（chat.vue 累积的完整列表），流内列表仅作退化
 const visualizations = computed(() => {
+  if (Array.isArray(props.vizList) && props.vizList.length) return props.vizList
   if (!props.stream || !props.stream.visualizations) return []
   return props.stream.visualizations.value
 })
+
+// ---------- 卡片折叠：最新 2 张默认展开，历史卡折叠为缩略行（用户可切换） ----------
+const DEFAULT_OPEN = 2
+const vizState = ref({}) // key -> open（仅记录用户显式操作过的卡）
+
+function vizKeyOf(v) {
+  return (v.visualizationType || '') + '|' + (v.title || '')
+}
+
+function isVizOpen(v, i) {
+  const k = vizKeyOf(v)
+  if (k in vizState.value) return !!vizState.value[k]
+  return i >= visualizations.value.length - DEFAULT_OPEN
+}
+
+function toggleViz(v) {
+  const k = vizKeyOf(v)
+  const idx = visualizations.value.findIndex(x => vizKeyOf(x) === k)
+  vizState.value = Object.assign({}, vizState.value, { [k]: !isVizOpen(v, idx) })
+}
+
+const allExpanded = computed(() => visualizations.value.every((v, i) => isVizOpen(v, i)))
+
+function toggleAllViz() {
+  const next = {}
+  for (const v of visualizations.value) next[vizKeyOf(v)] = !allExpanded.value
+  vizState.value = next
+}
+
+function vizTypeLabel(t) {
+  const labels = {
+    line_chart: '折线', bar_chart: '柱状', pie_chart: '饼图', scatter_chart: '散点',
+    radar_chart: '雷达', gauge_chart: '仪表', heatmap: '热力', table: '表格',
+    geo_map: '地图', topology: '拓扑', flowchart: '流程', sequence_diagram: '时序',
+    er_diagram: 'ER', mindmap: '脑图', state_diagram: '状态', class_diagram: '类图'
+  }
+  return labels[t] || t || '图表'
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts)
+  const p = n => String(n).padStart(2, '0')
+  return p(d.getHours()) + ':' + p(d.getMinutes())
+}
 const result = computed(() => (props.stream && props.stream.result ? props.stream.result.value : null))
 const traceSteps = computed(() => {
   if (!props.stream || !props.stream.traceSteps) return []
@@ -244,6 +327,58 @@ function onPointClick(params) {
 .wc-empty-sub { font-size: 11.5px; opacity: .75; }
 .wc-body { display: flex; flex-direction: column; gap: 16px; }
 .wc-viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); gap: 14px; }
+/* 会话级可视化卡片：折叠缩略行 + 展开态（标题/删除/AI 分析） */
+.wc-viz-sec { display: flex; flex-direction: column; gap: 8px; }
+.wc-viz-bar { display: flex; align-items: center; justify-content: space-between; }
+.wc-viz-count { font-size: 12px; color: var(--text-3, #a1a1a1); }
+.wc-viz-card {
+  background: #fff; border: 1px solid var(--border-default, #e5e7eb);
+  border-radius: 12px; padding: 12px 14px; min-width: 0;
+}
+.wc-viz-card.folded { padding: 0; border: none; background: transparent; }
+.wc-viz-thumb {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; cursor: pointer;
+  background: rgba(255, 255, 255, .72);
+  border: 1px dashed var(--border-default, #e5e7eb); border-radius: 9px;
+  font-size: 12px; min-width: 0;
+}
+.wc-viz-thumb:hover { border-color: var(--green-deep); }
+.wc-viz-thumb-type {
+  flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
+  background: rgba(23, 160, 94, .1); color: var(--green-ink, #0E6E46);
+  font-size: 11px;
+}
+.wc-viz-thumb-title {
+  flex: 1; color: var(--text-2, #57534e); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.wc-viz-thumb-time { flex-shrink: 0; color: var(--text-3, #a1a1a1); font-size: 11px; }
+.wc-viz-thumb-open { flex-shrink: 0; color: var(--green-ink, #0E6E46); font-size: 11px; }
+.wc-viz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.wc-viz-title { font-size: 13.5px; font-weight: 600; color: var(--text-1, #171717); }
+.wc-viz-ops { display: inline-flex; align-items: center; gap: 8px; }
+.wc-viz-time { font-size: 11px; color: var(--text-3, #a1a1a1); }
+.wc-viz-x {
+  width: 20px; height: 20px; border: none; border-radius: 6px;
+  background: transparent; color: var(--text-3, #a1a1a1);
+  font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+}
+.wc-viz-x:hover { background: #fee2e2; color: #dc2626; }
+.wc-viz-caption { margin-top: 6px; font-size: 12px; color: var(--text-3, #737373); }
+.wc-viz-analysis {
+  margin-top: 8px; display: flex; gap: 8px;
+  padding: 8px 10px; border-radius: 6px;
+  background: rgba(23, 160, 94, .06);
+  border-left: 3px solid rgba(23, 160, 94, .55);
+  font-size: 12.5px; color: #1A2B22; line-height: 1.55;
+}
+.wc-viz-analysis-tag { flex-shrink: 0; font-weight: 600; color: var(--green-ink, #0E6E46); }
+.wc-viz-fold {
+  margin-top: 8px; padding: 0; border: none; background: transparent;
+  color: var(--text-3, #a1a1a1); font: inherit; font-size: 11px; cursor: pointer;
+}
+.wc-viz-fold:hover { color: var(--green-ink, #0E6E46); }
 .wc-card {
   background: #fff; border: 1px solid var(--border-default, #e5e7eb);
   border-radius: 12px; padding: 14px 16px;
