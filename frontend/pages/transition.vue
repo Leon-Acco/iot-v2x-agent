@@ -13,11 +13,11 @@ definePageMeta({ layout: false })
 const stageText = ref('正在连接 AI 服务')
 
 onMounted(async () => {
-  await new Promise(r => setTimeout(r, 1000))
+  await new Promise(r => setTimeout(r, 800))
   stageText.value = '正在验证身份'
-  await new Promise(r => setTimeout(r, 600))
+  await new Promise(r => setTimeout(r, 500))
   stageText.value = '连接成功'
-  await new Promise(r => setTimeout(r, 400))
+  await new Promise(r => setTimeout(r, 300))
   navigateTo('/chat')
 })
 </script>
@@ -26,7 +26,7 @@ onMounted(async () => {
 .transition-page {
   position: fixed; inset: 0; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: #FCFCFF; /* 与 jixiangwu.gif 底色一致（全帧主色 47.4%） */
+  background: #f5f4f4; /* 与 jixiangwu.gif 底色一致（全帧主色 47.4%） */
 }
 .face-img {
   width: min(52vmin, 420px); height: auto;
