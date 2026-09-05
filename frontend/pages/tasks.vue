@@ -104,7 +104,7 @@ function fmtTime(t) {
 </script>
 
 <style scoped>
-.tasks-page { max-width: 860px; }
+.tasks-page { max-width: 100%; }
 .page-hint {
   font-size: 12px; color: var(--text-3); line-height: 1.8; margin-bottom: 14px;
   background: #F3F4F6; border-radius: 12px; padding: 10px 14px;
